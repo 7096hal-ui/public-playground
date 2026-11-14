@@ -834,7 +834,7 @@ export class World3D {
     const G = new Geo(); // 빛 번짐
     const boxes = this.findBuildings(level);
     boxes.forEach((bx, i) => {
-      bx.depth = 160 + Math.floor(rand() * 5) * 32;
+      bx.depth = level.boss ? 448 : 160 + Math.floor(rand() * 5) * 32;
       bx.color = WALL_COLORS[(i * 7 + 3) % WALL_COLORS.length];
       bx.style = (i * 7 + 3) % 3;
       bx.roof = Math.floor(rand() * ROOF_COLORS.length);
@@ -845,6 +845,7 @@ export class World3D {
       if (bx.toBottom) this.decorateRoof(P, Dc, G, bx, rng(seed + i * 101), level, th);
     });
     this.addTiles(level, P, Dc);
+    this.addLandmarks(level, boxes, P, Dc, G, th);
     this.add(new THREE.Mesh(B.build(), this.mats.building));
     if (P.count) this.add(new THREE.Mesh(P.build(), this.mats.prop));
     if (Dc.count) this.add(new THREE.Mesh(Dc.build(), this.mats.decal));
@@ -1044,6 +1045,46 @@ export class World3D {
         P.box(px, y, z - 3, px + 4, y + hgt, z + 1, col('#5c636e'), 'FLRK');
         P.box(px - 12, y + hgt * 0.7, z - 2, px + 16, y + hgt * 0.7 + 3, z, col('#5c636e'), 'FLRTK');
         G.quad([px + 2, y + hgt + 3, z + 4], [0, 0, 0], [0, 0, 0], col('#ff3b3b'), [-1, -1, 1, 1], [20, 1.1, r(), 1]);
+      }
+    }
+  }
+
+  // 골인 아치, 보스 헬기장 같은 특별한 장식
+  addLandmarks(level, boxes, P, Dc, G, th) {
+    const at = this.atlas;
+    const roofAt = (px) => {
+      const b = boxes.find((q) => q.toBottom && px >= q.x0 * T && px < (q.x1 + 1) * T);
+      return b ? { y: -b.r0 * T, depth: b.depth, b } : null;
+    };
+    if (level.goal) {
+      const gx = level.goal.x;
+      const r = roofAt(gx);
+      if (r) {
+        const z = -34;
+        const half = 92;
+        const hgt = 118;
+        for (const px of [gx - half, gx + half]) {
+          P.box(px - 7, r.y, z - 14, px + 7, r.y + hgt, z, col('#ff6fa3'), 'FLRTK', [0.4, 0.1, 0, 0]);
+          Dc.quad([px - 16, r.y + hgt - 6, z + 2], [32, 0, 0], [0, 48, 0], [1, 1, 1], at.uv(R.balloon), [0.5, 0.2, 0, 0]);
+        }
+        Dc.quad([gx - half - 10, r.y + hgt - 52, z + 1], [half * 2 + 20, 0, 0], [0, 50, 0], [1, 1, 1], at.uv(R.arch), [0.9, 0.3, 0, 0]);
+        G.quad([gx, r.y + hgt - 27, z + 10], [0, 0, 0], [0, 0, 0], col('#ffcf7a').map((v) => v * 0.5), [-1, -1, 1, 1], [130, 0, 0, 1]);
+        for (let k = 0; k < 6; k++) {
+          G.quad([gx - half + (k * half * 2) / 5, r.y + hgt + 4, z + 6], [0, 0, 0], [0, 0, 0], col(['#ff6fa3', '#ffd43b', '#74c0fc'][k % 3]), [-1, -1, 1, 1], [12, 2.2, k / 6, 0]);
+        }
+      }
+    }
+    if (level.boss) {
+      const cx = (level.cols * T) / 2;
+      const r = roofAt(cx);
+      if (r) {
+        const size = 300;
+        Dc.quad([cx - size / 2, r.y + 0.6, -60], [size, 0, 0], [0, 0, -size * 0.9], [1, 1, 1], at.uv(R.helipad), [0.35, 0.1, 0, 0]);
+        // 헬기장 테두리 조명
+        for (let k = 0; k < 14; k++) {
+          const a = (k / 14) * Math.PI * 2;
+          G.quad([cx + Math.cos(a) * 160, r.y + 4, -60 - size * 0.45 + Math.sin(a) * 140], [0, 0, 0], [0, 0, 0], col('#ffd43b'), [-1, -1, 1, 1], [14, 1.4, k / 14, 0]);
+        }
       }
     }
   }

@@ -255,7 +255,6 @@ export const LEVELS = [
       L.zipline(12, 7, 24, 9);
       L.fly(18, 7, { ax: 1, ay: 0.3 });
       L.building(20, 32, 11);
-      L.pigeon(27);
       // 골목 33~40: 낡은 간판 다리
       L.crumble(34, 10, 2);
       L.crumble(37, 9, 2);

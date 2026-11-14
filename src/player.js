@@ -141,9 +141,10 @@ export class Player {
     this.inVent = false;
     for (const v of level.vents) {
       if (v.contains(this)) {
+        // 바람 기둥 꼭대기 조금 아래(발이 top + 36)에서 둥실 멈추도록 속도를 맞춘다
         const feet = this.y + this.h;
-        const k = Math.max(0, Math.min(1, (feet - v.top) / 70));
-        this.vy = Math.max(this.vy - VENT_LIFT * k * dt, -VENT_MAX_UP);
+        const target = -VENT_MAX_UP * Math.max(-0.6, Math.min(1, (feet - v.top - 36) / 60));
+        this.vy = approach(this.vy, target, VENT_LIFT * dt);
         this.inVent = true;
         this.jumping = false;
       }
@@ -199,7 +200,7 @@ export class Player {
       const hy = this.y - 6;
       for (const z of level.ziplines) {
         const n = z.nearest(hx, hy);
-        if (n.d < 16 && n.s < z.len - 24) {
+        if (n.d < 20 && n.s < z.len - 24) {
           const along = this.vx * z.ux + this.vy * z.uy;
           this.zip = { line: z, s: n.s, v: Math.max(ZIP_MIN, along) };
           this.platform = null;

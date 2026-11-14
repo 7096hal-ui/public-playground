@@ -144,15 +144,20 @@ export function drawVent(ctx, v, t) {
   // 바람 줄기
   ctx.save();
   ctx.lineCap = 'round';
-  for (let i = 0; i < 9; i++) {
+  const glow = ctx.createLinearGradient(0, top, 0, base);
+  glow.addColorStop(0, 'rgba(200, 240, 255, 0)');
+  glow.addColorStop(1, 'rgba(200, 240, 255, 0.22)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(x + 4, top, w - 8, base - top);
+  for (let i = 0; i < 14; i++) {
     const h = hash(i, Math.floor(x));
     const lx = x + 6 + h * (w - 12);
     const span = base - top;
     const k = (t * (0.8 + h * 0.6) + h) % 1;
     const y0 = base - 18 - k * span;
-    const a = Math.sin(k * Math.PI) * 0.55;
-    ctx.strokeStyle = `rgba(220, 245, 255, ${a})`;
-    ctx.lineWidth = 2;
+    const a = Math.sin(k * Math.PI) * 0.85;
+    ctx.strokeStyle = `rgba(235, 250, 255, ${a})`;
+    ctx.lineWidth = 2.5;
     line(ctx, lx + Math.sin(t * 6 + i) * 2, y0, lx + Math.sin(t * 6 + i + 1) * 2, y0 - 22);
   }
   ctx.restore();
