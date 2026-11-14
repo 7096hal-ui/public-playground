@@ -29,19 +29,19 @@ export function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-function circle(ctx, x, y, r) {
+export function circle(ctx, x, y, r) {
   ctx.beginPath();
   ctx.arc(x, y, r, 0, Math.PI * 2);
 }
 
-function line(ctx, x0, y0, x1, y1) {
+export function line(ctx, x0, y0, x1, y1) {
   ctx.beginPath();
   ctx.moveTo(x0, y0);
   ctx.lineTo(x1, y1);
   ctx.stroke();
 }
 
-function hash(x, y) {
+export function hash(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
@@ -68,7 +68,7 @@ const THEMES = {
   },
 };
 
-function cloud(ctx, x, y, s) {
+export function cloud(ctx, x, y, s) {
   ctx.fillStyle = '#ffffff';
   circle(ctx, x, y, 16 * s);
   ctx.fill();
@@ -252,7 +252,7 @@ function drawWall(ctx, level, tx, ty, px, py, night) {
 }
 
 // 공사장 비계
-function drawScaffold(ctx, px, py) {
+export function drawScaffold(ctx, px, py) {
   ctx.fillStyle = 'rgba(40, 30, 20, 0.25)';
   ctx.fillRect(px + 3, py + 6, T - 6, T - 6);
   ctx.strokeStyle = '#e8a33a';
@@ -270,7 +270,7 @@ function drawScaffold(ctx, px, py) {
 }
 
 // 에어컨 실외기
-function drawAirCon(ctx, px, py, night) {
+export function drawAirCon(ctx, px, py, night) {
   roundRect(ctx, px + 1, py + 1, T - 2, T - 2, 3);
   ctx.fillStyle = night ? '#9aa0bd' : '#e6e9ed';
   ctx.fill();
@@ -289,7 +289,7 @@ function drawAirCon(ctx, px, py, night) {
 }
 
 // 철조망
-function drawBarbedWire(ctx, px, py) {
+export function drawBarbedWire(ctx, px, py) {
   ctx.strokeStyle = '#4b5563';
   ctx.lineWidth = 2;
   line(ctx, px, py + T - 2, px + T, py + T - 2);
@@ -306,6 +306,17 @@ function drawBarbedWire(ctx, px, py) {
     const x = px + 4 + i * 8;
     line(ctx, x - 2, py + T - 18, x + 2, py + T - 14);
     line(ctx, x + 2, py + T - 18, x - 2, py + T - 14);
+  }
+}
+
+// 3D로 그릴 때도 철조망은 판정이 있으니 2D 덧그림으로 그린다.
+export function drawHazardTiles(ctx, level, x0, x1) {
+  const c0 = Math.max(0, Math.floor(x0 / T) - 1);
+  const c1 = Math.min(level.cols - 1, Math.floor(x1 / T) + 1);
+  for (let ty = 0; ty < level.rows; ty++) {
+    for (let tx = c0; tx <= c1; tx++) {
+      if (level.grid[ty][tx] === '^') drawBarbedWire(ctx, tx * T, ty * T);
+    }
   }
 }
 

@@ -80,6 +80,11 @@ function level(name, theme, width, build) {
   return def;
 }
 
+// 타이틀 화면에서 주인공이 서 있는 옥상
+export const TITLE_LEVEL = level('타이틀', 'sunset', 80, (L) => {
+  L.building(0, 79, GROUND);
+});
+
 export const LEVELS = [
   level('빌딩 숲', 'day', 120, (L) => {
     L.building(0, 14, 11);

@@ -1,4 +1,4 @@
-import { LEVELS, T, ROWS, GROUND } from './levels.js';
+import { LEVELS, TITLE_LEVEL, T, ROWS, GROUND } from './levels.js';
 import { Level } from './level.js';
 import { Player } from './player.js';
 import { GRAVITY } from './entities.js';
@@ -6,11 +6,13 @@ import { NO_INPUT } from './input.js';
 import { sfx, toggleMute, isMuted } from './audio.js';
 import { rectsOverlap, circleRect } from './physics.js';
 import * as D from './draw.js';
+import { theme } from './themes.js';
 
 const VIEW_H = ROWS * T; // 480
 const MIN_VIEW_W = 512;
 const START_LIVES = 3;
 const CATCH_LINES = ['잡았다!', '꿀꿀!', '포획 완료!', '어딜 도망가!', '하나 더!'];
+const EYE_FRAC = 0.36; // 3D 카메라 눈높이 (화면 위에서부터 비율)
 
 export const TITLE = '꿀꿀 고추 사냥';
 
@@ -36,6 +38,17 @@ export class Game {
     this.camX = 0;
     this.shake = 0;
     this.touch = false;
+    this.world3d = null; // 3D 도시 렌더러. 없으면 예전 2D 배경으로 그린다.
+    this.debug = false; // true면 판정 칸을 빨간 선으로 보여 준다
+    this.zoom = 1;
+    this.zoomFX = 0.5;
+    this.zoomFY = 0.5;
+    this.eyeDX = 0;
+    this.eyeDY = 0;
+    this.distK = 1;
+    this.camDist = 650;
+    this.view = { x: 0, y: 0, w: MIN_VIEW_W, h: VIEW_H, eyeX: 0, eyeY: 0, dist: 650 };
+    this.titleLevel = new Level(TITLE_LEVEL);
   }
 
   resize(width, height) {
@@ -44,6 +57,8 @@ export class Game {
     this.scale = Math.min(height / VIEW_H, width / MIN_VIEW_W);
     this.viewW = width / this.scale;
     this.viewH = height / this.scale;
+    // 눈과 화면(z = 0 평면) 사이 거리. 가까울수록 원근감이 세다.
+    this.camDist = Math.max(VIEW_H * 1.35, this.viewW * 0.62);
   }
 
   // 터치 버튼을 보여줄 상태인가
@@ -63,12 +78,15 @@ export class Game {
   startLevel(i) {
     this.levelIndex = i;
     this.level = new Level(LEVELS[i]);
+    if (this.world3d) this.world3d.buildLevel(this.level, `stage${i}`);
     const s = this.level.start;
     this.spawn = { x: s.x * T + 6, y: (s.y + 1) * T };
     this.player = new Player(this.spawn.x, this.spawn.y);
     this.caught = 0;
     this.particles = [];
     this.texts = [];
+    this.eyeDX = 0;
+    this.eyeDY = 0;
     this.updateCamera(0, true);
     this.setState('play');
   }
@@ -326,8 +344,38 @@ export class Game {
 
   // ───────────────────────── 그리기 ─────────────────────────
 
+  // 2D 덧그림과 3D 도시가 함께 쓰는 화면 영역(z = 0 평면 기준)과 눈 위치
+  computeView() {
+    const z = this.zoom;
+    const w = this.viewW / z;
+    const h = this.viewH / z;
+    let x = this.camX + (this.viewW - w) * this.zoomFX;
+    let y = VIEW_H - this.viewH + (this.viewH - h) * this.zoomFY;
+    if (this.shake > 0) {
+      x += (Math.random() - 0.5) * 8;
+      y += (Math.random() - 0.5) * 8;
+    }
+    const v = this.view;
+    v.x = x;
+    v.y = y;
+    v.w = w;
+    v.h = h;
+    v.eyeX = x + w * 0.5 + this.eyeDX;
+    // 눈높이는 화면 아래쪽(옥상들) 기준으로 잡는다. 세로로 긴 화면에서도 원근감이 같다.
+    v.eyeY = y + h - (VIEW_H / z) * (1 - EYE_FRAC) + this.eyeDY;
+    v.dist = this.camDist * this.distK;
+    return v;
+  }
+
   render() {
     const { ctx } = this;
+    if (this.state === 'title') this.titleCamera();
+    const v = this.computeView();
+    if (this.world3d) {
+      if (this.state === 'title') this.world3d.buildLevel(this.titleLevel, 'title');
+      this.world3d.render(v, this.t);
+      ctx.clearRect(0, 0, this.width, this.height);
+    }
     ctx.save();
     ctx.scale(this.scale, this.scale);
     if (this.state === 'title') this.renderTitle();
@@ -336,20 +384,16 @@ export class Game {
   }
 
   renderWorld() {
-    const { ctx, level, player: p, viewW: vw, viewH: vh, t } = this;
-    const camY = VIEW_H - vh; // 화면이 세로로 길면 하늘이 더 보인다
-    D.drawBackground(ctx, this.camX, camY, vw, vh, t, level.theme);
-
-    let sx = 0;
-    let sy = 0;
-    if (this.shake > 0) {
-      sx = (Math.random() - 0.5) * 8;
-      sy = (Math.random() - 0.5) * 8;
+    const { ctx, level, player: p, viewW: vw, viewH: vh, t, view: v } = this;
+    if (!this.world3d) {
+      D.drawBackground(ctx, v.x, v.y, vw, vh, t, theme(level.theme).fallback);
     }
     ctx.save();
-    ctx.translate(Math.round(-this.camX + sx), Math.round(-camY + sy));
+    ctx.scale(this.zoom, this.zoom);
+    ctx.translate(-v.x, -v.y);
 
-    D.drawTiles(ctx, level, this.camX, this.camX + vw);
+    if (this.world3d) D.drawHazardTiles(ctx, level, v.x, v.x + v.w);
+    else D.drawTiles(ctx, level, v.x, v.x + v.w);
     D.drawGoal(ctx, level.goal, t);
     for (const cp of level.checkpoints) D.drawCheckpoint(ctx, cp, t);
     for (const pl of level.platforms) D.drawPlatform(ctx, pl);
@@ -393,10 +437,30 @@ export class Game {
       D.text(ctx, s.str, s.x, s.y, { size: 16, color: s.color });
     }
     ctx.globalAlpha = 1;
+    if (this.debug) this.renderDebug();
     ctx.restore();
 
     this.renderHUD();
     this.renderOverlay();
+  }
+
+  // 판정 칸 확인용: 단단한 칸은 빨강, 발판은 노랑, 주인공은 초록
+  renderDebug() {
+    const { ctx, level, view: v } = this;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)';
+    const c0 = Math.max(0, Math.floor(v.x / T));
+    const c1 = Math.min(level.cols - 1, Math.floor((v.x + v.w) / T));
+    for (let ty = 0; ty < ROWS; ty++) {
+      for (let tx = c0; tx <= c1; tx++) {
+        if (level.isSolid(tx, ty)) ctx.strokeRect(tx * T + 0.5, ty * T + 0.5, T - 1, T - 1);
+      }
+    }
+    ctx.strokeStyle = 'rgba(255, 220, 0, 0.9)';
+    for (const pl of level.platforms) ctx.strokeRect(pl.x, pl.y, pl.w, pl.h);
+    const p = this.player;
+    ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
+    ctx.strokeRect(p.x, p.y, p.w, p.h);
   }
 
   renderHUD() {
@@ -464,12 +528,22 @@ export class Game {
     }
   }
 
+  // 타이틀: 노을 진 옥상. 눈 위치만 천천히 흔들어서 도시가 입체로 돌아 보이게 한다.
+  titleCamera() {
+    const t = this.t;
+    this.camX = 40 * T - this.viewW / 2;
+    this.eyeDX = Math.sin(t * 0.23) * this.viewW * 0.45;
+    this.eyeDY = -30 + Math.sin(t * 0.17) * 40;
+  }
+
   renderTitle() {
     const { ctx, viewW: vw, viewH: vh, t } = this;
     const camY = VIEW_H - vh;
-    D.drawBackground(ctx, t * 40, camY, vw, vh, t);
     const groundY = GROUND * T - camY;
-    D.drawRoofStrip(ctx, groundY, vw, vh - groundY);
+    if (!this.world3d) {
+      D.drawBackground(ctx, t * 40, camY, vw, vh, t);
+      D.drawRoofStrip(ctx, groundY, vw, vh - groundY);
+    }
 
     const cx = vw / 2;
     const top = Math.max(20, groundY - 400);
