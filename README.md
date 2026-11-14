@@ -1,6 +1,26 @@
-# public-playground
+# 꿀꿀 고추 사냥
 
-Vite + Canvas 2D 기반의 빈 웹 게임 템플릿.
+하늘을 날아다니는 고추를 잠자리채로 잡으러 다니는 횡스크롤 플랫폼 게임.
+주인공 꿀꿀이는 돼지 인형옷을 입고 머리에 곤충 더듬이를 단 개구쟁이다.
+
+플레이: https://7096hal-ui.github.io/public-playground/
+
+## 조작
+
+| 동작 | 키보드 | 터치 |
+| --- | --- | --- |
+| 이동 | ← → (또는 A D) | ◀ ▶ 버튼 |
+| 점프 | Space / Z / ↑ (길게 누르면 높이) | 점프 버튼 |
+| 잠자리채 휘두르기 | X (또는 J) | 채 버튼 |
+| 일시정지 | P / Esc | Ⅱ 버튼 |
+| 소리 켜기/끄기 | M | |
+
+## 규칙
+
+- 목숨 3개로 시작한다. 가시, 굴러다니는 밤송이, 위아래로 움직이는 철퇴공에 닿거나 구덩이에 빠지면 목숨이 1 줄어든다.
+- 중간 깃발에 닿으면 그 자리에서 다시 시작한다.
+- 골 깃발에 닿으면 스테이지 클리어. 스테이지의 고추를 전부 잡았으면 목숨 +1.
+- 스테이지 2개.
 
 ## 개발
 
@@ -14,17 +34,18 @@ npm run preview  # 빌드 결과 미리보기
 ## 구조
 
 ```
-index.html          캔버스와 엔트리 스크립트
-src/main.js         캔버스 리사이즈(DPR 대응) + 고정 간격(60Hz) 게임 루프
-src/game.js         게임 상태 — update(dt) / render() 를 채워 나가면 됨
-src/input.js        키보드 입력 상태 (input.isDown('ArrowLeft') 등)
-src/style.css       전체 화면 캔버스 스타일
-.github/workflows/deploy.yml   GitHub Pages 자동 배포
+src/main.js      캔버스 크기 조정, 게임 루프, 터치 버튼 연결
+src/game.js      게임 진행(타이틀·플레이·클리어·게임오버), 판정, 화면 그리기
+src/levels.js    스테이지 설계 — 여기서 스테이지를 고치거나 추가한다
+src/level.js     스테이지 데이터를 실제 플레이용으로 만듦
+src/player.js    주인공 조작감(속도·점프 높이 등 수치가 맨 위에 있음)
+src/entities.js  고추, 밤송이, 철퇴공, 움직이는 발판, 깃발
+src/physics.js   타일 충돌 처리
+src/draw.js      모든 그림 (이미지 파일 없이 도형으로 그림)
+src/audio.js     효과음 (파일 없이 Web Audio로 생성)
+src/input.js     키보드·터치 입력
 ```
 
 ## 자동 배포
 
 `main` 브랜치에 push 하면 GitHub Actions가 빌드 후 GitHub Pages에 배포한다.
-
-최초 1회 설정: 저장소 **Settings → Pages → Build and deployment → Source** 를
-**GitHub Actions** 로 지정. 배포 주소는 `https://7096hal-ui.github.io/public-playground/`.

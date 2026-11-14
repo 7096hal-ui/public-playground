@@ -2,12 +2,24 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Public Playground</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#49b4ff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>꿀꿀 고추 사냥</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Jua&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./src/style.css" />
   </head>
   <body>
     <canvas id="game"></canvas>
+    <div id="pad" class="hidden">
+      <button data-action="left" aria-label="왼쪽">◀</button>
+      <button data-action="right" aria-label="오른쪽">▶</button>
+      <button data-action="net" aria-label="잠자리채">채</button>
+      <button data-action="jump" aria-label="점프">점프</button>
+      <button data-action="pause" aria-label="일시정지">Ⅱ</button>
+    </div>
     <script type="module" src="./src/main.js"></script>
   </body>
 </html>
