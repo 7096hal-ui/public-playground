@@ -11,7 +11,7 @@ export class Boss {
     this.left = 2 * T;
     this.right = level.pixelW - 2 * T;
     this.ground = 11 * T; // 헬기장 바닥
-    this.maxHp = 8;
+    this.maxHp = 10;
     this.hp = this.maxHp;
     this.x = level.pixelW * 0.62;
     this.y = -160;
@@ -34,7 +34,7 @@ export class Boss {
   }
 
   get phase() {
-    return this.hp > 5 ? 1 : this.hp > 2 ? 2 : 3;
+    return this.hp > 6 ? 1 : this.hp > 3 ? 2 : 3;
   }
 
   set(state) {
@@ -73,7 +73,7 @@ export class Boss {
         this.facing = px < this.x ? -1 : 1;
         this.seedT -= dt;
         if (this.seedT <= 0) {
-          this.seedT = [0, 1.5, 1.15, 0.85][ph];
+          this.seedT = [0, 1.8, 1.5, 1.25][ph];
           this.throwSeeds(ph);
         }
         this.minionT -= dt;
@@ -180,7 +180,7 @@ export class Boss {
   }
 
   throwSeeds(ph) {
-    const n = ph + 2;
+    const n = ph + 1;
     for (let i = 0; i < n; i++) {
       const a = -Math.PI / 2 + (i - (n - 1) / 2) * 0.5;
       this.seeds.push({ x: this.x, y: this.y + 20, vx: Math.cos(a) * 150 + this.vx * 0.3, vy: -80 - Math.random() * 60, dead: false });
@@ -197,7 +197,7 @@ export class Boss {
     if (!this.vulnerable) return false;
     this.hp--;
     this.flash = 0.4;
-    this.inv = 0.5;
+    this.inv = 0.6;
     this.emit('hit');
     if (this.hp <= 0) {
       this.seeds = [];

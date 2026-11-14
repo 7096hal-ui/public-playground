@@ -66,8 +66,12 @@ export function renderWorld(g) {
   ctx.globalAlpha = 1;
   drawFireworks(ctx, g.fireworks);
   for (const s of g.texts) {
+    // 긴 글자가 화면 밖으로 잘리지 않게 안쪽으로 당긴다
+    const size = s.size || 16;
+    const pad = Math.min(v.w / 2, s.str.length * size * 0.36 + 8);
+    const x = Math.max(v.x + pad, Math.min(v.x + v.w - pad, s.x));
     ctx.globalAlpha = Math.min(1, s.life * 2);
-    D.text(ctx, s.str, s.x, s.y, { size: s.size || 16, color: s.color });
+    D.text(ctx, s.str, x, s.y, { size, color: s.color });
   }
   ctx.globalAlpha = 1;
   if (g.debug) renderDebug(g);
