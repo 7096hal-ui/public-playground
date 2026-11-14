@@ -41,8 +41,8 @@ export class Flyer {
   }
 }
 
-// 땅 위를 굴러다니는 밤송이. 벽이나 낭떠러지에서 방향을 바꾼다.
-export class Chestnut {
+// 옥상을 왔다 갔다 하는 성난 비둘기. 벽이나 옥상 끝에서 방향을 바꾼다.
+export class Pigeon {
   constructor({ x, y }) {
     this.w = 24;
     this.h = 24;
@@ -50,7 +50,7 @@ export class Chestnut {
     this.y = (y + 1) * T - this.h;
     this.vx = -55;
     this.vy = 0;
-    this.rot = 0;
+    this.walk = Math.random() * 10;
     this.onGround = false;
     this.gone = false;
   }
@@ -64,22 +64,21 @@ export class Chestnut {
       const fx = this.vx > 0 ? this.x + this.w + 1 : this.x - 1;
       if (!level.isSolid(Math.floor(fx / T), Math.floor((this.y + this.h + 2) / T))) this.vx = -this.vx;
     }
-    this.rot += (this.vx * dt) / 12;
+    this.walk += Math.abs(this.vx) * dt;
     if (this.y > ROWS * T + 100) this.gone = true;
   }
 }
 
-// 사슬에 매달려 위아래로 움직이는 철퇴공.
-export class SpikeBall {
+// 크레인 줄에 매달려 위아래로 움직이는 쇳덩이.
+export class WreckingBall {
   constructor({ x, y, amp, speed }) {
     this.x = x * T + 16;
     this.by = y * T + 16;
     this.amp = amp * T;
     this.speed = speed;
     this.t = Math.random() * Math.PI * 2;
-    this.r = 13;
+    this.r = 14;
     this.y = this.by;
-    this.anchorY = this.by - this.amp - 40;
   }
 
   update(dt) {
@@ -88,7 +87,7 @@ export class SpikeBall {
   }
 }
 
-// 좌우로 왕복하는 발판. 위에서만 올라설 수 있다.
+// 크레인에 매달려 좌우로 왕복하는 철골 발판. 위에서만 올라설 수 있다.
 export class Platform {
   constructor({ x, y, range, speed, w }) {
     this.x0 = x * T;

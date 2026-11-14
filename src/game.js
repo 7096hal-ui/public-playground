@@ -188,11 +188,11 @@ export class Game {
         }
       }
     }
-    for (const c of level.chestnuts) {
+    for (const c of level.pigeons) {
       const r = { x: c.x + 3, y: c.y + 3, w: c.w - 6, h: c.h - 6 };
       if (rectsOverlap(box, r)) return c.x + c.w / 2;
     }
-    for (const s of level.spikeBalls) {
+    for (const s of level.wreckingBalls) {
       if (circleRect(s.x, s.y, s.r + 2, box)) return s.x;
     }
     return null;
@@ -338,7 +338,7 @@ export class Game {
   renderWorld() {
     const { ctx, level, player: p, viewW: vw, viewH: vh, t } = this;
     const camY = VIEW_H - vh; // 화면이 세로로 길면 하늘이 더 보인다
-    D.drawBackground(ctx, this.camX, camY, vw, vh, t);
+    D.drawBackground(ctx, this.camX, camY, vw, vh, t, level.theme);
 
     let sx = 0;
     let sy = 0;
@@ -353,8 +353,8 @@ export class Game {
     D.drawGoal(ctx, level.goal, t);
     for (const cp of level.checkpoints) D.drawCheckpoint(ctx, cp, t);
     for (const pl of level.platforms) D.drawPlatform(ctx, pl);
-    for (const s of level.spikeBalls) D.drawSpikeBall(ctx, s);
-    for (const c of level.chestnuts) D.drawChestnut(ctx, c, t);
+    for (const s of level.wreckingBalls) D.drawWreckingBall(ctx, s);
+    for (const c of level.pigeons) D.drawPigeon(ctx, c, t);
     for (const f of level.flyers) {
       const k = f.caught ? 1 - f.caughtT / 0.6 : 1;
       D.drawFlyer(ctx, f.x, f.y, {
@@ -469,17 +469,12 @@ export class Game {
     const camY = VIEW_H - vh;
     D.drawBackground(ctx, t * 40, camY, vw, vh, t);
     const groundY = GROUND * T - camY;
-    ctx.fillStyle = '#cd7d3f';
-    ctx.fillRect(0, groundY, vw, vh - groundY);
-    ctx.fillStyle = '#5fcf3f';
-    ctx.fillRect(0, groundY, vw, 10);
-    ctx.fillStyle = '#9af07a';
-    ctx.fillRect(0, groundY, vw, 3);
+    D.drawRoofStrip(ctx, groundY, vw, vh - groundY);
 
     const cx = vw / 2;
     const top = Math.max(20, groundY - 400);
     D.text(ctx, TITLE, cx, top + 50, { size: Math.min(56, vw / 8), color: '#ffe3ef', stroke: '#b23a6b' });
-    D.text(ctx, '하늘을 나는 고추를 잠자리채로 잡아라!', cx, top + 100, { size: 18 });
+    D.text(ctx, '도심 옥상을 뛰어다니며 하늘을 나는 고추를 잡아라!', cx, top + 100, { size: 18 });
 
     // 주인공과 고추가 쫓고 쫓기는 장면
     const heroX = cx - 70 + Math.sin(t * 0.8) * 30;
