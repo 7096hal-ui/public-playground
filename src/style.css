@@ -8,10 +8,12 @@ html, body {
   user-select: none;
   -webkit-touch-callout: none;
 }
-canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; touch-action: none; }
+#world { z-index: 0; }
+#game { z-index: 1; }
 
 /* 터치 기기용 화면 버튼 */
-#pad { position: fixed; inset: 0; pointer-events: none; }
+#pad { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #pad.hidden { display: none; }
 #pad button {
   pointer-events: auto;
