@@ -2,6 +2,7 @@ import { Game, TITLE } from './game.js';
 import { Input } from './input.js';
 import { unlockAudio, setAudioSuspended } from './audio.js';
 import { World3D } from './world3d.js';
+import { setupTouchPad } from './touch.js';
 
 const canvas = document.getElementById('game');
 const worldCanvas = document.getElementById('world');
@@ -57,37 +58,21 @@ window.addEventListener('resize', resize);
 resize();
 
 // 브라우저는 사용자가 한 번 조작해야 소리를 낼 수 있게 해 준다.
+// (휴대폰은 손가락을 뗄 때 허락이 나는 경우가 있어서 떼는 순간에도 시도한다)
 window.addEventListener('keydown', unlockAudio);
 window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('pointerup', unlockAudio);
+window.addEventListener('touchend', unlockAudio);
 
-// 터치 기기: 화면 버튼 사용
+// 터치 기기: 화면 버튼 사용 (손가락 여러 개·미끄러뜨리기 지원은 touch.js)
 game.touch = window.matchMedia('(pointer: coarse)').matches;
-window.addEventListener('touchstart', () => (game.touch = true), { passive: true });
+const touchPad = setupTouchPad(pad, input, game);
 
-canvas.addEventListener('pointerdown', () => input.tap('confirm'));
-for (const btn of pad.querySelectorAll('button')) {
-  const action = btn.dataset.action;
-  const down = (e) => {
-    e.preventDefault();
-    btn.setPointerCapture?.(e.pointerId);
-    btn.classList.add('on');
-    if (action === 'pause') {
-      if (game.state === 'paused') input.tap('confirm');
-      else input.tap('pause');
-      return;
-    }
-    input.press(action);
-  };
-  const up = () => {
-    btn.classList.remove('on');
-    input.release(action);
-  };
-  btn.addEventListener('pointerdown', down);
-  btn.addEventListener('pointerup', up);
-  btn.addEventListener('pointercancel', up);
-  btn.addEventListener('lostpointercapture', up);
-  btn.addEventListener('contextmenu', (e) => e.preventDefault());
-}
+// 마우스로 화면을 누르면 "다음/계속" (터치는 touch.js가 처리)
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch') input.tap('confirm');
+});
+pad.addEventListener('contextmenu', (e) => e.preventDefault());
 
 // 다른 탭으로 가면 자동 일시정지
 document.addEventListener('visibilitychange', () => {
@@ -121,6 +106,7 @@ function frame(now) {
   }
   game.render();
   pad.classList.toggle('hidden', !(game.touch && game.showPad));
+  touchPad.update();
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

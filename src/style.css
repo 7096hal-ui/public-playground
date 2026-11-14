@@ -12,27 +12,39 @@ canvas { position: fixed; inset: 0; display: block; width: 100%; height: 100%; t
 #world { z-index: 0; }
 #game { z-index: 1; }
 
-/* 터치 기기용 화면 버튼 */
+/* 터치 기기용 화면 버튼 (그림일 뿐, 터치는 src/touch.js가 화면 전체에서 받는다) */
+html, body { touch-action: none; overscroll-behavior: none; }
 #pad { position: fixed; inset: 0; pointer-events: none; z-index: 2; }
 #pad.hidden { display: none; }
 #pad button {
-  pointer-events: auto;
+  pointer-events: none;
   position: absolute;
-  width: 66px;
-  height: 66px;
+  width: 74px;
+  height: 74px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.85);
-  background: rgba(58, 35, 64, 0.25);
+  background: rgba(58, 35, 64, 0.28);
   color: #fff;
   font: 22px "Jua", sans-serif;
   touch-action: none;
+  transition: transform 0.06s, background 0.06s;
   -webkit-tap-highlight-color: transparent;
 }
-#pad button.on { background: rgba(255, 111, 163, 0.65); }
-#pad [data-action="left"] { left: calc(16px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }
-#pad [data-action="right"] { left: calc(94px + env(safe-area-inset-left)); bottom: calc(20px + env(safe-area-inset-bottom)); }
-#pad [data-action="jump"] { right: calc(16px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom)); }
-#pad [data-action="net"] { right: calc(94px + env(safe-area-inset-right)); bottom: calc(48px + env(safe-area-inset-bottom)); }
+#pad button.on { background: rgba(255, 111, 163, 0.7); transform: scale(0.94); }
+#pad [data-action="left"] { left: calc(14px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom)); }
+#pad [data-action="right"] { left: calc(96px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom)); }
+#pad [data-action="jump"] {
+  right: calc(14px + env(safe-area-inset-right));
+  bottom: calc(18px + env(safe-area-inset-bottom));
+  width: 82px;
+  height: 82px;
+}
+#pad [data-action="net"] {
+  right: calc(108px + env(safe-area-inset-right));
+  bottom: calc(44px + env(safe-area-inset-bottom));
+  width: 70px;
+  height: 70px;
+}
 #pad [data-action="pause"] {
   right: calc(12px + env(safe-area-inset-right));
   top: calc(60px + env(safe-area-inset-top));
