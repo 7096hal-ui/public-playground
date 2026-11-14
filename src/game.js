@@ -1,20 +1,42 @@
-import { LEVELS, TITLE_LEVEL, T, ROWS, GROUND } from './levels.js';
+import { LEVELS, TITLE_LEVEL, T, ROWS } from './levels.js';
 import { Level } from './level.js';
-import { Player } from './player.js';
-import { GRAVITY } from './entities.js';
+import { Player, POWER_TIME } from './player.js';
+import { GRAVITY, Flyer } from './entities.js';
+import { Boss } from './boss.js';
 import { NO_INPUT } from './input.js';
-import { sfx, toggleMute, isMuted } from './audio.js';
+import { sfx, toggleMute } from './audio.js';
+import { playMusic, stopMusic } from './music.js';
 import { rectsOverlap, circleRect } from './physics.js';
-import * as D from './draw.js';
 import { theme } from './themes.js';
+import * as R from './render2d.js';
 
 const VIEW_H = ROWS * T; // 480
 const MIN_VIEW_W = 512;
 const START_LIVES = 3;
-const CATCH_LINES = ['잡았다!', '꿀꿀!', '포획 완료!', '어딜 도망가!', '하나 더!'];
+const COMBO_TIME = 2.2; // 이 시간 안에 또 잡으면 콤보
+const INTRO_TIME = 2.4;
 const EYE_FRAC = 0.36; // 3D 카메라 눈높이 (화면 위에서부터 비율)
+const CATCH_LINES = ['잡았다!', '꿀꿀!', '포획 완료!', '어딜 도망가!', '하나 더!'];
+const POWER_NAMES = { net: '왕잠자리채!', wings: '돼지 날개! 공중 점프 한 번 더', magnet: '자석 더듬이!', heart: '목숨 +1' };
+const HISCORE_KEY = 'ggul-gochu-hiscore';
 
 export const TITLE = '꿀꿀 고추 사냥';
+
+function loadHi() {
+  try {
+    return Number(localStorage.getItem(HISCORE_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
+function saveHi(v) {
+  try {
+    localStorage.setItem(HISCORE_KEY, String(v));
+  } catch {
+    // 저장이 막혀 있어도 게임은 계속된다
+  }
+}
+const ease = (k) => 1 - Math.pow(1 - Math.min(1, Math.max(0, k)), 3);
 
 export class Game {
   constructor(canvas, input) {
@@ -31,12 +53,17 @@ export class Game {
     this.stateT = 0;
     this.lives = START_LIVES;
     this.levelIndex = 0;
+    this.score = 0;
+    this.hiScore = loadHi();
+    this.newHi = false;
     this.totalCaught = 0;
     this.totalFlyers = LEVELS.reduce((n, l) => n + l.flyers.length, 0);
     this.particles = [];
     this.texts = [];
+    this.fireworks = [];
     this.camX = 0;
     this.shake = 0;
+    this.flash = 0;
     this.touch = false;
     this.world3d = null; // 3D 도시 렌더러. 없으면 예전 2D 배경으로 그린다.
     this.debug = false; // true면 판정 칸을 빨간 선으로 보여 준다
@@ -49,6 +76,11 @@ export class Game {
     this.camDist = 650;
     this.view = { x: 0, y: 0, w: MIN_VIEW_W, h: VIEW_H, eyeX: 0, eyeY: 0, dist: 650 };
     this.titleLevel = new Level(TITLE_LEVEL);
+    this.music = undefined;
+    this.lightningT = 4;
+    this.bolt = null;
+    this.zipSoundT = 0;
+    this.wasInVent = false;
   }
 
   resize(width, height) {
@@ -63,7 +95,7 @@ export class Game {
 
   // 터치 버튼을 보여줄 상태인가
   get showPad() {
-    return this.state === 'play' || this.state === 'dying' || this.state === 'paused';
+    return this.state === 'play' || this.state === 'dying' || this.state === 'paused' || this.state === 'intro';
   }
 
   setState(s) {
@@ -75,6 +107,15 @@ export class Game {
     if (this.state === 'play') this.state = 'paused';
   }
 
+  newGame() {
+    this.lives = START_LIVES;
+    this.score = 0;
+    this.totalCaught = 0;
+    this.newHi = false;
+    this.startLevel(0);
+    sfx.start();
+  }
+
   startLevel(i) {
     this.levelIndex = i;
     this.level = new Level(LEVELS[i]);
@@ -82,13 +123,27 @@ export class Game {
     const s = this.level.start;
     this.spawn = { x: s.x * T + 6, y: (s.y + 1) * T };
     this.player = new Player(this.spawn.x, this.spawn.y);
+    this.boss = this.level.boss ? new Boss(this.level) : null;
     this.caught = 0;
+    this.combo = 0;
+    this.comboT = 0;
+    this.bestCombo = 0;
+    this.hits = 0;
+    this.stageTime = 0;
+    this.stageStartScore = this.score;
     this.particles = [];
     this.texts = [];
+    this.fireworks = [];
+    this.results = null;
+    this.clearT = -1;
+    this.zoom = 1;
     this.eyeDX = 0;
     this.eyeDY = 0;
+    this.distK = 1;
+    this.bolt = null;
+    this.flash = 0;
     this.updateCamera(0, true);
-    this.setState('play');
+    this.setState('intro');
   }
 
   // ───────────────────────── 업데이트 ─────────────────────────
@@ -101,12 +156,10 @@ export class Game {
 
     switch (this.state) {
       case 'title':
-        if (inp.pressed('confirm') || inp.pressed('jump')) {
-          this.lives = START_LIVES;
-          this.totalCaught = 0;
-          this.startLevel(0);
-          sfx.start();
-        }
+        if (inp.pressed('confirm') || inp.pressed('jump')) this.newGame();
+        break;
+      case 'intro':
+        this.updateIntro(dt);
         break;
       case 'play':
         if (inp.pressed('pause')) this.state = 'paused';
@@ -119,37 +172,109 @@ export class Game {
         this.updateDying(dt);
         break;
       case 'clear':
-        this.level.update(dt, this.player);
-        this.player.update(dt, NO_INPUT, this.level);
-        this.updateCamera(dt);
-        if (this.stateT > 1.2 && inp.pressed('confirm')) {
-          if (this.levelIndex + 1 < LEVELS.length) this.startLevel(this.levelIndex + 1);
-          else this.setState('ending');
-        }
+        this.updateClear(dt);
         break;
       case 'gameover':
         if (this.stateT > 1.2 && inp.pressed('confirm')) {
           this.lives = START_LIVES;
+          this.score = this.stageStartScore;
           this.startLevel(this.levelIndex);
         }
         break;
       case 'ending':
-        if (this.stateT > 1.5 && inp.pressed('confirm')) this.setState('title');
+        this.updateEnding(dt);
+        if (this.stateT > 2.5 && inp.pressed('confirm')) this.setState('title');
         break;
     }
+    this.updateWeather(dt);
     this.updateEffects(dt);
+    this.syncMusic();
     inp.endStep();
+  }
+
+  // 스테이지 시작: 카메라 눈이 크게 돌아 들어오며 도시가 입체로 펼쳐진다.
+  // (z = 0 평면은 고정이라 주인공 그림은 어긋나지 않는다)
+  updateIntro(dt) {
+    const { level, player: p } = this;
+    level.update(dt, p);
+    p.update(dt, NO_INPUT, level);
+    if (this.boss) this.updateBoss(dt);
+    const k = 1 - ease(this.stateT / INTRO_TIME);
+    this.eyeDX = k * this.viewW * 1.1;
+    this.eyeDY = -k * 300;
+    this.distK = 1 - k * 0.45;
+    this.updateCamera(dt);
+    const skip = this.stateT > 0.5 && (this.input.pressed('confirm') || this.input.pressed('jump'));
+    if (this.stateT >= INTRO_TIME || skip) {
+      this.eyeDX = 0;
+      this.eyeDY = 0;
+      this.distK = 1;
+      this.setState('play');
+    }
   }
 
   updatePlay(dt) {
     const { level, player: p } = this;
+    this.stageTime += dt;
+    if (this.comboT > 0) {
+      this.comboT -= dt;
+      if (this.comboT <= 0) this.combo = 0;
+    }
+    const before = [p.bigNet, p.wings, p.magnet];
     level.update(dt, p);
-    const { jumped, swung } = p.update(dt, this.input, level);
-    if (jumped) {
+    const ev = p.update(dt, this.input, level);
+    if (ev.jumped) {
       sfx.jump();
       this.dust(p.x + p.w / 2, p.y + p.h);
     }
-    if (swung) sfx.swing();
+    if (ev.airJump) {
+      sfx.doubleJump();
+      this.burst(p.x + p.w / 2, p.y + p.h, ['#ffffff', '#ffc9de'], 8);
+    }
+    if (ev.swung) sfx.swing();
+    if (ev.sprung) {
+      sfx.spring();
+      this.burst(ev.sprung.x + ev.sprung.w / 2, ev.sprung.y, ['#ff6b6b', '#ffffff', '#ffd43b'], 10);
+    }
+    if (ev.zipStart) {
+      sfx.zipGrab();
+      this.zipSoundT = 0;
+    }
+    if (p.zip) {
+      this.zipSoundT -= dt;
+      if (this.zipSoundT <= 0) {
+        sfx.zipRide();
+        this.zipSoundT = 0.45;
+      }
+      if (Math.random() < 0.5) {
+        this.particles.push({ x: p.x + p.w / 2, y: p.y - 10, vx: -p.vx * 0.2, vy: -20, life: 0.25, size: 2, color: '#ffe066' });
+      }
+    }
+    if (p.inVent && !this.wasInVent) sfx.vent();
+    this.wasInVent = p.inVent;
+    const after = [p.bigNet, p.wings, p.magnet];
+    for (let k = 0; k < 3; k++) if (before[k] > 0 && after[k] <= 0) sfx.powerDown();
+    for (const c of level.platforms) {
+      if (c.kind !== 'crumble') continue;
+      if (!c.solid && !c.fellSaid) {
+        c.fellSaid = true;
+        sfx.crumble();
+      }
+      if (c.solid) c.fellSaid = false;
+    }
+    for (const r of level.rods) {
+      if (r.struck && Math.abs(r.x - (p.x + p.w / 2)) < this.viewW) {
+        sfx.zap();
+        this.flash = Math.max(this.flash, 0.5);
+        this.shake = Math.max(this.shake, 0.15);
+        this.burst(r.x, r.base - 70, ['#ffffff', '#fff3a0', '#a5d8ff'], 10);
+      }
+    }
+
+    // 아이템
+    for (const it of level.items) {
+      if (!it.taken && rectsOverlap(p, it.rect)) this.collect(it);
+    }
 
     // 잠자리채로 잡기
     const net = p.netHitbox();
@@ -157,7 +282,9 @@ export class Game {
       for (const f of level.flyers) {
         if (!f.caught && circleRect(f.x, f.y, f.r, net)) this.catchFlyer(f);
       }
+      if (this.boss && circleRect(this.boss.x, this.boss.y, this.boss.r, net)) this.boss.hit();
     }
+    if (this.boss) this.updateBoss(dt);
 
     // 체크포인트
     for (const cp of level.checkpoints) {
@@ -169,14 +296,21 @@ export class Game {
       }
     }
 
-    // 골인
-    if (p.x + p.w > level.goal.x) {
+    // 골인 (보스 스테이지는 마지막 고추를 잡으면 끝)
+    if (level.goal && p.x + p.w > level.goal.x) {
       this.levelClear();
       return;
     }
+    if (this.clearT >= 0) {
+      this.clearT -= dt;
+      if (this.clearT < 0) {
+        this.levelClear();
+        return;
+      }
+    }
 
     // 함정·장애물
-    if (p.invuln <= 0) {
+    if (p.invuln <= 0 && !p.dead) {
       const hitFrom = this.findHazard(p);
       if (hitFrom !== null) this.hurt(hitFrom);
     }
@@ -184,10 +318,66 @@ export class Game {
     // 구덩이
     if (this.state === 'play' && p.y > VIEW_H + 40) {
       this.lives--;
+      this.hits++;
       sfx.hurt();
       this.die(false);
     }
     this.updateCamera(dt);
+  }
+
+  updateBoss(dt) {
+    const b = this.boss;
+    b.update(dt, this.player);
+    for (const e of b.events) {
+      if (e === 'roar') {
+        sfx.bossRoar();
+        this.shake = 0.6;
+        this.floatText('대왕 고추가 나타났다!', b.x, b.y + 70, '#ff8787', 20);
+      } else if (e === 'dive') {
+        sfx.bossDive();
+      } else if (e === 'thud') {
+        sfx.thud();
+        this.shake = 0.35;
+        this.burst(b.x, b.ground, ['#ced4da', '#ffffff', '#868e96'], 16);
+        this.floatText('지금이야! 채로 잡아!', b.x, b.y - 70, '#ffd43b');
+      } else if (e === 'seed') {
+        sfx.seed();
+      } else if (e === 'hit') {
+        sfx.bossHit();
+        this.addScore(500, b.x, b.y - 60, '맞았다!');
+        this.burst(b.x, b.y, ['#ffd23f', '#ff9ec0', '#ffffff'], 18);
+        this.shake = 0.2;
+      } else if (e === 'defeat') {
+        sfx.bossDown();
+        this.shake = 0.8;
+        this.flash = 0.8;
+      } else if (e === 'pop') {
+        sfx.firework();
+        this.burst(b.x, b.y, ['#ffd23f', '#ff6fa3', '#ffffff', '#74c0fc'], 40);
+        const f = new Flyer({ x: b.x / T - 0.5, y: b.y / T - 0.5, ax: 2, ay: 1, speed: 0.6 });
+        f.final = true;
+        this.level.flyers.push(f);
+        this.floatText('작아졌다! 잡아라!', b.x, b.y - 50, '#ffd43b', 20);
+      } else if (e === 'minion' && this.level.flyers.filter((f) => f.minion && !f.caught).length < 3) {
+        const f = new Flyer({ x: b.x / T - 0.5, y: b.y / T + 1, ax: 2.5, ay: 1, speed: 1.2 });
+        f.minion = true;
+        this.level.flyers.push(f);
+      }
+    }
+    b.events.length = 0;
+  }
+
+  collect(it) {
+    const p = this.player;
+    it.taken = true;
+    sfx.powerUp();
+    if (it.kind === 'heart') this.lives++;
+    else if (it.kind === 'net') p.bigNet = POWER_TIME.net;
+    else if (it.kind === 'wings') p.wings = POWER_TIME.wings;
+    else if (it.kind === 'magnet') p.magnet = POWER_TIME.magnet;
+    this.addScore(200);
+    this.burst(it.x, it.y, ['#ffffff', '#ffd43b', '#74c0fc'], 14);
+    this.floatText(POWER_NAMES[it.kind], it.x, it.y - 30, '#ffffff', 18);
   }
 
   // 닿은 위험물의 x좌표를 돌려준다 (없으면 null). 판정은 살짝 너그럽게.
@@ -213,12 +403,24 @@ export class Game {
     for (const s of level.wreckingBalls) {
       if (circleRect(s.x, s.y, s.r + 2, box)) return s.x;
     }
+    for (const r of level.rods) {
+      const b = r.box;
+      if (b && rectsOverlap(box, b)) return r.x;
+    }
+    if (this.boss) {
+      for (const c of this.boss.hazards()) {
+        if (circleRect(c.x, c.y, c.r, box)) return c.x;
+      }
+    }
     return null;
   }
 
   hurt(fromX) {
     const p = this.player;
     this.lives--;
+    this.hits++;
+    this.combo = 0;
+    this.comboT = 0;
     sfx.hurt();
     this.shake = 0.3;
     this.burst(p.x + p.w / 2, p.y + p.h / 2, ['#ff5d8f', '#ffffff'], 10);
@@ -226,6 +428,8 @@ export class Game {
       this.die(true);
       return;
     }
+    p.zip = null;
+    p.zipCd = 0.4;
     p.invuln = 1.6;
     p.stun = 0.25;
     p.vy = -420;
@@ -239,8 +443,10 @@ export class Game {
   die(hop) {
     const p = this.player;
     p.dead = true;
+    p.zip = null;
     p.vx = 0;
     p.vy = hop ? -520 : 0;
+    this.combo = 0;
     this.floatText('으악!', p.x + p.w / 2, Math.min(p.y, VIEW_H - 40) - 30, '#ff5d8f');
     this.setState('dying');
   }
@@ -248,6 +454,7 @@ export class Game {
   updateDying(dt) {
     const p = this.player;
     this.level.update(dt, p);
+    if (this.boss) this.updateBoss(dt);
     if (p.vy !== 0 || p.y < VIEW_H + 100) {
       p.vy += GRAVITY * dt;
       p.y += p.vy * dt;
@@ -260,36 +467,157 @@ export class Game {
         this.setState('play');
       } else {
         sfx.gameOver();
+        this.saveHiScore();
         this.setState('gameover');
       }
     }
   }
 
+  addScore(pts, x, y, label) {
+    this.score += pts;
+    if (x !== undefined) this.floatText(`+${pts}${label ? ' ' + label : ''}`, x, y, '#ffd23f');
+  }
+
   catchFlyer(f) {
     f.caught = true;
-    this.caught++;
-    sfx.catch();
-    this.burst(f.x, f.y, ['#ffd23f', '#ff9ec0', '#ffffff'], 14);
-    const line = CATCH_LINES[Math.floor(Math.random() * CATCH_LINES.length)];
-    this.floatText(`+1 ${line}`, f.x, f.y - 24, '#ffd23f');
+    if (!f.minion && !f.final) this.caught++;
+    this.combo = this.comboT > 0 ? this.combo + 1 : 1;
+    this.comboT = COMBO_TIME;
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    const mult = Math.min(this.combo, 8);
+    const pts = (f.golden ? 500 : f.final ? 1000 : 100) * mult;
+    this.score += pts;
+    sfx.catch(this.combo);
+    if (f.golden) sfx.golden();
+    this.burst(f.x, f.y, f.golden ? ['#ffd23f', '#fff3a0', '#ffffff'] : ['#ffd23f', '#ff9ec0', '#ffffff'], f.golden ? 26 : 14);
+    if (this.combo >= 2) {
+      this.floatText(`${this.combo} 콤보! +${pts}`, f.x, f.y - 24, '#ff9ec0', 16 + Math.min(this.combo, 8) * 1.5);
+    } else {
+      const line = f.golden ? '황금 고추!' : CATCH_LINES[Math.floor(Math.random() * CATCH_LINES.length)];
+      this.floatText(`+${pts} ${line}`, f.x, f.y - 24, '#ffd23f');
+    }
+    if (f.final) {
+      this.flash = 0.6;
+      this.clearT = 1.0;
+    }
   }
 
   levelClear() {
-    const { level } = this;
+    const { level, player: p } = this;
+    const total = level.totalFlyers;
+    const perfect = total > 0 && this.caught === total;
+    const rows = [];
+    if (level.boss) rows.push(['대왕 고추 격파', 5000]);
+    else rows.push([`잡은 고추 ${this.caught} / ${total}`, 0]);
+    if (perfect) rows.push(['전부 잡기 보너스', 2000]);
+    if (this.hits === 0) rows.push(['무사고 보너스', 1000]);
+    const tb = Math.max(0, Math.round((level.par - this.stageTime) * 20));
+    if (tb > 0) rows.push(['시간 보너스', tb]);
+    if (this.bestCombo >= 3) rows.push([`최고 ${this.bestCombo} 콤보`, this.bestCombo * 100]);
+    let stars;
+    if (level.boss) stars = this.hits === 0 ? 3 : this.hits <= 2 ? 2 : 1;
+    else stars = 1 + (this.caught >= Math.ceil(total * 0.7) ? 1 : 0) + (perfect ? 1 : 0);
+    const bonus = rows.reduce((n, r) => n + r[1], 0);
+    this.score += bonus;
+    this.results = { rows, stars, perfect, bonus };
     this.totalCaught += this.caught;
-    this.perfect = this.caught === level.totalFlyers;
-    if (this.perfect) this.lives++;
-    this.player.vx = 0;
+    if (perfect) {
+      this.lives++;
+      setTimeout(() => sfx.oneUp(), 900);
+    }
+    p.vx = 0;
+    p.zip = null;
     sfx.clear();
-    if (this.perfect) setTimeout(() => sfx.oneUp(), 700);
+    this.starsShown = 0;
+    // 주인공 쪽으로 천천히 다가간다
+    this.zoomFX = Math.min(0.9, Math.max(0.1, (p.x + p.w / 2 - this.camX) / this.viewW));
+    this.zoomFY = Math.min(0.9, Math.max(0.1, (p.y - (VIEW_H - this.viewH)) / this.viewH));
     this.setState('clear');
+  }
+
+  updateClear(dt) {
+    const { level, player: p } = this;
+    level.update(dt, p);
+    p.update(dt, NO_INPUT, level);
+    this.zoom += (1.28 - this.zoom) * Math.min(1, dt * 2);
+    this.eyeDX = Math.sin(this.stateT * 0.6) * this.viewW * 0.25;
+    for (let i = 0; i < 3; i++) {
+      if (this.starsShown === i && this.results.stars > i && this.stateT > 0.5 + i * 0.35) {
+        this.starsShown++;
+        sfx.star(i);
+      }
+    }
+    if (this.stateT > 0.4 && Math.random() < dt * 2.5) this.launchFirework();
+    if (this.stateT > 1.8 && this.input.pressed('confirm')) {
+      if (this.levelIndex + 1 < LEVELS.length) this.startLevel(this.levelIndex + 1);
+      else {
+        this.saveHiScore();
+        this.zoom = 1;
+        this.eyeDX = 0;
+        this.setState('ending');
+      }
+    }
+  }
+
+  updateEnding(dt) {
+    const { level, player: p } = this;
+    level.update(dt, p);
+    p.update(dt, NO_INPUT, level);
+    this.zoom += (1 - this.zoom) * Math.min(1, dt * 2);
+    this.eyeDX = Math.sin(this.stateT * 0.25) * this.viewW * 0.5;
+    this.eyeDY = -60 + Math.sin(this.stateT * 0.18) * 50;
+    if (Math.random() < dt * 4) this.launchFirework();
+  }
+
+  saveHiScore() {
+    if (this.score > this.hiScore) {
+      this.hiScore = this.score;
+      this.newHi = true;
+      saveHi(this.score);
+    }
   }
 
   updateCamera(dt, snap = false) {
     const p = this.player;
     const max = Math.max(0, this.level.pixelW - this.viewW);
-    const target = Math.min(Math.max(p.x + p.w / 2 - this.viewW * 0.4, 0), max);
+    let target = Math.min(Math.max(p.x + p.w / 2 - this.viewW * 0.4, 0), max);
+    if (this.level.pixelW < this.viewW) target = (this.level.pixelW - this.viewW) / 2;
     this.camX = snap ? target : this.camX + (target - this.camX) * Math.min(1, dt * 8);
+  }
+
+  // 지금 상태에 맞는 배경음악 (같은 곡이면 아무 일도 안 함)
+  syncMusic() {
+    let want = null;
+    const s = this.state;
+    if (s === 'title') want = 'title';
+    else if (s === 'ending') want = 'ending';
+    else if (s === 'intro' || s === 'play' || s === 'paused' || s === 'dying') {
+      want = this.level.theme;
+      if (this.boss && (this.boss.state === 'defeat' || this.boss.state === 'gone')) want = null;
+    }
+    if (want === this.music) return;
+    this.music = want;
+    if (want) playMusic(want);
+    else stopMusic();
+  }
+
+  // 폭풍우 스테이지의 번개
+  updateWeather(dt) {
+    if (this.flash > 0) this.flash = Math.max(0, this.flash - dt * 2.2);
+    if (this.bolt) {
+      this.bolt.life -= dt;
+      if (this.bolt.life <= 0) this.bolt = null;
+    }
+    if (this.state !== 'title' && this.level && theme(this.level.theme).lightning) {
+      this.lightningT -= dt;
+      if (this.lightningT <= 0) {
+        this.lightningT = 5 + Math.random() * 6;
+        this.flash = Math.max(this.flash, 0.9);
+        this.bolt = { x: this.view.x + this.view.w * (0.15 + Math.random() * 0.7), seed: Math.floor(Math.random() * 1000), life: 0.25 };
+        setTimeout(() => sfx.thunder(), 250 + Math.random() * 400);
+      }
+    }
+    if (this.world3d) this.world3d.flash = this.flash * 0.6;
   }
 
   updateEffects(dt) {
@@ -305,7 +633,47 @@ export class Game {
       s.life -= dt;
     }
     this.texts = this.texts.filter((s) => s.life > 0);
+    for (const f of this.fireworks) {
+      if (f.stage === 'up') {
+        f.y += f.vy * dt;
+        f.vy += 260 * dt;
+        if (f.vy > -60) {
+          f.stage = 'boom';
+          sfx.firework();
+          for (let i = 0; i < 46; i++) {
+            const a = (i / 46) * Math.PI * 2;
+            const sp = 90 + Math.random() * 110;
+            f.sparks.push({ x: f.x, y: f.y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp, life: 1.2 + Math.random() * 0.5 });
+          }
+        }
+      } else {
+        for (const s of f.sparks) {
+          s.vx *= 1 - dt * 1.4;
+          s.vy = s.vy * (1 - dt * 1.4) + 70 * dt;
+          s.x += s.vx * dt;
+          s.y += s.vy * dt;
+          s.life -= dt;
+        }
+        f.sparks = f.sparks.filter((s) => s.life > 0);
+        if (!f.sparks.length) f.done = true;
+      }
+    }
+    this.fireworks = this.fireworks.filter((f) => !f.done);
     if (this.shake > 0) this.shake -= dt;
+  }
+
+  launchFirework() {
+    if (this.fireworks.length > 6) return;
+    const v = this.view;
+    const colors = ['#ff6fa3', '#ffd23f', '#74c0fc', '#8ce99a', '#b197fc', '#ff8787'];
+    this.fireworks.push({
+      x: v.x + v.w * (0.15 + Math.random() * 0.7),
+      y: v.y + v.h * 0.85,
+      vy: -330 - Math.random() * 120,
+      stage: 'up',
+      sparks: [],
+      color: colors[Math.floor(Math.random() * colors.length)],
+    });
   }
 
   burst(x, y, colors, n) {
@@ -338,8 +706,8 @@ export class Game {
     }
   }
 
-  floatText(str, x, y, color = '#fff') {
-    this.texts.push({ str, x, y, color, life: 1 });
+  floatText(str, x, y, color = '#fff', size = 16) {
+    this.texts.push({ str, x, y, color, size, life: 1.1 });
   }
 
   // ───────────────────────── 그리기 ─────────────────────────
@@ -378,206 +746,18 @@ export class Game {
     }
     ctx.save();
     ctx.scale(this.scale, this.scale);
-    if (this.state === 'title') this.renderTitle();
-    else this.renderWorld();
+    if (this.state === 'title') R.renderTitle(this);
+    else R.renderWorld(this);
     ctx.restore();
-  }
-
-  renderWorld() {
-    const { ctx, level, player: p, viewW: vw, viewH: vh, t, view: v } = this;
-    if (!this.world3d) {
-      D.drawBackground(ctx, v.x, v.y, vw, vh, t, theme(level.theme).fallback);
-    }
-    ctx.save();
-    ctx.scale(this.zoom, this.zoom);
-    ctx.translate(-v.x, -v.y);
-
-    if (this.world3d) D.drawHazardTiles(ctx, level, v.x, v.x + v.w);
-    else D.drawTiles(ctx, level, v.x, v.x + v.w);
-    D.drawGoal(ctx, level.goal, t);
-    for (const cp of level.checkpoints) D.drawCheckpoint(ctx, cp, t);
-    for (const pl of level.platforms) D.drawPlatform(ctx, pl);
-    for (const s of level.wreckingBalls) D.drawWreckingBall(ctx, s);
-    for (const c of level.pigeons) D.drawPigeon(ctx, c, t);
-    for (const f of level.flyers) {
-      const k = f.caught ? 1 - f.caughtT / 0.6 : 1;
-      D.drawFlyer(ctx, f.x, f.y, {
-        facing: f.facing,
-        flap: f.flap,
-        panic: f.panic || f.caught,
-        t: t + f.bx,
-        scale: k,
-        alpha: k,
-        spin: f.caught ? f.caughtT * 12 : 0,
-      });
-    }
-
-    const blinkOut = p.invuln > 0 && !p.dead && Math.floor(t * 15) % 2 === 0;
-    if (!blinkOut) {
-      D.drawHero(ctx, p.x + p.w / 2, p.y + p.h, {
-        facing: p.facing,
-        run: p.run,
-        air: !p.onGround,
-        moving: Math.abs(p.vx) > 10,
-        swing: p.swingProgress,
-        blink: t % 3.2 < 0.12,
-        t,
-        hurt: p.dead || p.stun > 0,
-      });
-    }
-
-    for (const q of this.particles) {
-      ctx.globalAlpha = Math.min(1, q.life * 2);
-      ctx.fillStyle = q.color;
-      ctx.fillRect(q.x - q.size / 2, q.y - q.size / 2, q.size, q.size);
-    }
-    ctx.globalAlpha = 1;
-    for (const s of this.texts) {
-      ctx.globalAlpha = Math.min(1, s.life * 2);
-      D.text(ctx, s.str, s.x, s.y, { size: 16, color: s.color });
-    }
-    ctx.globalAlpha = 1;
-    if (this.debug) this.renderDebug();
-    ctx.restore();
-
-    this.renderHUD();
-    this.renderOverlay();
-  }
-
-  // 판정 칸 확인용: 단단한 칸은 빨강, 발판은 노랑, 주인공은 초록
-  renderDebug() {
-    const { ctx, level, view: v } = this;
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = 'rgba(255, 0, 0, 0.9)';
-    const c0 = Math.max(0, Math.floor(v.x / T));
-    const c1 = Math.min(level.cols - 1, Math.floor((v.x + v.w) / T));
-    for (let ty = 0; ty < ROWS; ty++) {
-      for (let tx = c0; tx <= c1; tx++) {
-        if (level.isSolid(tx, ty)) ctx.strokeRect(tx * T + 0.5, ty * T + 0.5, T - 1, T - 1);
-      }
-    }
-    ctx.strokeStyle = 'rgba(255, 220, 0, 0.9)';
-    for (const pl of level.platforms) ctx.strokeRect(pl.x, pl.y, pl.w, pl.h);
-    const p = this.player;
-    ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
-    ctx.strokeRect(p.x, p.y, p.w, p.h);
-  }
-
-  renderHUD() {
-    const { ctx, viewW: vw } = this;
-    if (this.lives <= 6) {
-      for (let i = 0; i < Math.max(this.lives, 0); i++) D.drawHeart(ctx, 22 + i * 24, 22, 1.4);
-    } else {
-      D.drawHeart(ctx, 22, 22, 1.4);
-      D.text(ctx, `x ${this.lives}`, 38, 23, { size: 18, align: 'left' });
-    }
-    D.text(ctx, `${this.levelIndex + 1}. ${this.level.name}`, vw / 2, 22, { size: 18 });
-    D.drawFlyer(ctx, vw - 92, 22, { flap: this.t * 18, t: this.t, scale: 0.8 });
-    D.text(ctx, `${this.caught} / ${this.level.totalFlyers}`, vw - 16, 23, { size: 20, align: 'right' });
-    if (isMuted()) D.text(ctx, '소리 끔 (M)', vw - 16, 48, { size: 12, align: 'right' });
-  }
-
-  renderOverlay() {
-    const { ctx, viewW: vw, viewH: vh, state, stateT } = this;
-    const cx = vw / 2;
-    const cy = vh / 2;
-    const blinkOn = Math.floor(this.t * 2.5) % 2 === 0;
-    const go = this.touch ? '화면을 누르면' : 'Enter를 누르면';
-
-    if (state === 'paused') {
-      ctx.fillStyle = 'rgba(30, 10, 40, 0.5)';
-      ctx.fillRect(0, 0, vw, vh);
-      D.text(ctx, '일시정지', cx, cy - 16, { size: 40 });
-      D.text(ctx, this.touch ? '화면을 누르면 계속' : 'P 또는 Enter로 계속', cx, cy + 28, { size: 18 });
-    } else if (state === 'clear') {
-      const pw = Math.min(360, vw - 32);
-      D.drawPanel(ctx, cx - pw / 2, cy - 90, pw, 180);
-      D.text(ctx, '스테이지 클리어!', cx, cy - 52, { size: 32, color: '#ff6fa3' });
-      D.text(ctx, `잡은 고추 ${this.caught} / ${this.level.totalFlyers}`, cx, cy - 8, {
-        size: 22,
-        color: '#3a2340',
-        stroke: null,
-      });
-      if (this.perfect) {
-        D.text(ctx, '전부 잡았다! 목숨 +1', cx, cy + 24, { size: 18, color: '#2f9e44', stroke: null });
-      }
-      if (stateT > 1.2 && blinkOn) {
-        const next = this.levelIndex + 1 < LEVELS.length ? '다음 스테이지' : '엔딩 보기';
-        D.text(ctx, `${go} ${next}`, cx, cy + 58, { size: 16, color: '#7a5a8a', stroke: null });
-      }
-    } else if (state === 'gameover') {
-      ctx.fillStyle = `rgba(30, 10, 40, ${Math.min(0.65, stateT)})`;
-      ctx.fillRect(0, 0, vw, vh);
-      D.text(ctx, '게임 오버', cx, cy - 24, { size: 48, color: '#ff6fa3' });
-      D.text(ctx, '꿀꿀이는 지쳐서 잠들었다…', cx, cy + 20, { size: 18 });
-      if (stateT > 1.2 && blinkOn) D.text(ctx, `${go} 다시 도전`, cx, cy + 60, { size: 18 });
-    } else if (state === 'ending') {
-      ctx.fillStyle = `rgba(255, 240, 250, ${Math.min(0.85, stateT)})`;
-      ctx.fillRect(0, 0, vw, vh);
-      D.drawHero(ctx, cx, cy - 40, { t: this.t, swing: (this.t % 1.2) / 0.4 < 1 ? (this.t % 1.2) / 0.4 : -1 });
-      D.text(ctx, '모든 스테이지 클리어!', cx, cy + 10, { size: 34, color: '#ff6fa3' });
-      D.text(ctx, `총 잡은 고추 ${this.totalCaught} / ${this.totalFlyers}`, cx, cy + 52, {
-        size: 22,
-        color: '#3a2340',
-        stroke: null,
-      });
-      D.text(ctx, '오늘도 하늘의 평화는 지켜졌다. 꿀꿀!', cx, cy + 84, { size: 16, color: '#7a5a8a', stroke: null });
-      if (stateT > 1.5 && blinkOn) {
-        D.text(ctx, `${go} 처음으로`, cx, cy + 118, { size: 16, color: '#7a5a8a', stroke: null });
-      }
-    }
   }
 
   // 타이틀: 노을 진 옥상. 눈 위치만 천천히 흔들어서 도시가 입체로 돌아 보이게 한다.
   titleCamera() {
     const t = this.t;
+    this.zoom = 1;
+    this.distK = 1;
     this.camX = 40 * T - this.viewW / 2;
     this.eyeDX = Math.sin(t * 0.23) * this.viewW * 0.45;
     this.eyeDY = -30 + Math.sin(t * 0.17) * 40;
-  }
-
-  renderTitle() {
-    const { ctx, viewW: vw, viewH: vh, t } = this;
-    const camY = VIEW_H - vh;
-    const groundY = GROUND * T - camY;
-    if (!this.world3d) {
-      D.drawBackground(ctx, t * 40, camY, vw, vh, t);
-      D.drawRoofStrip(ctx, groundY, vw, vh - groundY);
-    }
-
-    const cx = vw / 2;
-    const top = Math.max(20, groundY - 400);
-    D.text(ctx, TITLE, cx, top + 50, { size: Math.min(56, vw / 8), color: '#ffe3ef', stroke: '#b23a6b' });
-    D.text(ctx, '도심 옥상을 뛰어다니며 하늘을 나는 고추를 잡아라!', cx, top + 100, { size: 18 });
-
-    // 주인공과 고추가 쫓고 쫓기는 장면
-    const heroX = cx - 70 + Math.sin(t * 0.8) * 30;
-    const phase = t % 1.6;
-    ctx.save();
-    ctx.translate(heroX, groundY);
-    ctx.scale(2.4, 2.4);
-    D.drawHero(ctx, 0, 0, { t, swing: phase < 0.3 ? phase / 0.3 : -1, blink: t % 3 < 0.12 });
-    ctx.restore();
-    D.drawFlyer(ctx, cx + 90 + Math.cos(t * 1.3) * 40, groundY - 150 + Math.sin(t * 2.6) * 25, {
-      facing: Math.sin(t * 1.3) > 0 ? -1 : 1,
-      flap: t * 25,
-      t,
-      scale: 2.2,
-      panic: true,
-    });
-
-    const help = this.touch
-      ? '◀ ▶ 이동 · 점프 버튼 · 잠자리채 버튼'
-      : '← → 이동   Space/Z 점프   X 잠자리채   P 일시정지   M 소리';
-    D.text(ctx, help, cx, groundY + 24, { size: 15 });
-    if (Math.floor(t * 2.5) % 2 === 0) {
-      D.text(ctx, this.touch ? '화면을 눌러서 시작!' : 'Enter를 눌러서 시작!', cx, groundY + 52, {
-        size: 20,
-        color: '#ffd23f',
-      });
-    }
-    if (this.touch && vh > vw) {
-      D.text(ctx, '휴대폰을 가로로 돌리면 더 넓게 보여요', cx, top + 130, { size: 14 });
-    }
   }
 }

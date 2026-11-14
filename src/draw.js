@@ -523,10 +523,15 @@ export function drawRoofStrip(ctx, y, w, h) {
 
 // 날아다니는 고추: 기다란 몸통 + 동글동글 두 알 + 날개 + 웃는 얼굴.
 export function drawFlyer(ctx, x, y, o = {}) {
-  const { facing = 1, flap = 0, panic = false, t = 0, scale = 1, alpha = 1, spin = 0 } = o;
-  const SKIN = '#f8c3a8';
-  const SKIN_D = '#eea385';
-  const LINE = '#b4664f';
+  const { facing = 1, flap = 0, panic = false, t = 0, scale = 1, alpha = 1, spin = 0, golden = false, tint = null } = o;
+  const pal = golden
+    ? ['#ffd84d', '#f5b700', '#a86b00']
+    : tint === 'king'
+      ? ['#ffa894', '#f2806b', '#a8432f']
+      : tint === 'angry'
+        ? ['#ff8574', '#e8564a', '#8f2a20']
+        : ['#f8c3a8', '#eea385', '#b4664f'];
+  const [SKIN, SKIN_D, LINE] = pal;
   const w = Math.abs(Math.sin(flap));
   ctx.save();
   ctx.globalAlpha = alpha;
@@ -608,7 +613,7 @@ function wing(ctx, x, y, w, color) {
 // 주인공 꿀꿀이: 돼지 인형옷 + 굵은 눈썹의 개구쟁이 얼굴 + 곤충 더듬이 + 잠자리채.
 // (x, y)는 발밑 중앙.
 export function drawHero(ctx, x, y, o = {}) {
-  const { facing = 1, run = 0, air = false, moving = false, swing = -1, blink = false, t = 0, hurt = false } = o;
+  const { facing = 1, run = 0, air = false, moving = false, swing = -1, blink = false, t = 0, hurt = false, hang = false, netScale = 1 } = o;
   const PINK = '#f9a8bd';
   const PINK_D = '#c9607e';
   const PINK_L = '#fdd3de';
@@ -764,29 +769,33 @@ export function drawHero(ctx, x, y, o = {}) {
   if (swing >= 0) {
     const e = 1 - Math.pow(1 - Math.min(swing, 1), 3);
     a = -2.3 + e * 2.9;
+  } else if (hang) {
+    a = -0.5 + Math.sin(t * 5) * 0.08;
   } else {
     a = -1.15 + Math.sin(t * 3) * 0.05;
   }
+  const ns = netScale;
   const dx = Math.cos(a);
   const dy = Math.sin(a);
   const hx = sx + dx * 7;
   const hy = sy + dy * 7;
 
   if (swing >= 0 && swing < 0.8) {
-    ctx.strokeStyle = `rgba(255, 255, 255, ${0.7 * (1 - swing)})`;
-    ctx.lineWidth = 4;
+    ctx.strokeStyle = ns > 1 ? `rgba(165, 216, 255, ${0.85 * (1 - swing)})` : `rgba(255, 255, 255, ${0.7 * (1 - swing)})`;
+    ctx.lineWidth = 4 * ns;
     ctx.beginPath();
-    ctx.arc(sx, sy, 37, -2.3, a);
+    ctx.arc(sx, sy, 37 * ns, -2.3, a);
     ctx.stroke();
   }
 
   ctx.strokeStyle = '#8a5a2b';
   ctx.lineWidth = 2.6;
-  line(ctx, hx - dx * 5, hy - dy * 5, hx + dx * 22, hy + dy * 22);
+  line(ctx, hx - dx * 5, hy - dy * 5, hx + dx * 22 * ns, hy + dy * 22 * ns);
 
   ctx.save();
-  ctx.translate(hx + dx * 30, hy + dy * 30);
+  ctx.translate(hx + dx * 30 * ns, hy + dy * 30 * ns);
   ctx.rotate(a);
+  ctx.scale(ns, ns);
   ctx.beginPath();
   ctx.ellipse(0, 0, 8, 9.5, 0, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
@@ -799,10 +808,23 @@ export function drawHero(ctx, x, y, o = {}) {
   }
   ctx.beginPath();
   ctx.ellipse(0, 0, 8, 9.5, 0, 0, Math.PI * 2);
-  ctx.strokeStyle = '#4a7fb5';
+  ctx.strokeStyle = ns > 1 ? '#f59f00' : '#4a7fb5';
   ctx.lineWidth = 2;
   ctx.stroke();
   ctx.restore();
+
+  // 짚라인에 매달릴 때: 빈손을 위로 뻗어 손잡이를 잡는다
+  if (hang) {
+    ctx.strokeStyle = PINK_D;
+    ctx.lineWidth = 5.5;
+    line(ctx, -3, -16 + bob, -1, -36);
+    ctx.strokeStyle = PINK;
+    ctx.lineWidth = 4;
+    line(ctx, -3, -16 + bob, -1, -36);
+    ctx.fillStyle = SKIN;
+    circle(ctx, -1, -37, 2.6);
+    ctx.fill();
+  }
 
   ctx.strokeStyle = PINK_D;
   ctx.lineWidth = 5.5;

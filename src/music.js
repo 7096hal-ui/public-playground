@@ -6,7 +6,8 @@
 import { onAudioReady, audioGraph } from './audio.js';
 
 // ── 악보 적는 법 ──────────────────────────────────────────────────────────────
-// 곡 = { bpm, key, swing?, mix?, form, inst, (성부·드럼 기본 패턴), sections }
+// 곡 = { bpm, key, swing?, mix?, form, inst, (성부·드럼 기본 패턴), sections }  — 언제나 4/4박자
+//   swing    16분음표 뒷박을 늦추는 정도(0~0.5).   mix  드럼 음량 { k, s, h, c } (기본값은 DRUM_VOL)
 //   form     구간 순서. 'A1 A2 B A2' — 끝까지 돌면 처음으로 이어진다.
 //   sections 구간마다 chords(마디별 화음)와, 기본 패턴을 바꿀 성부·드럼 패턴. '' 은 그 구간에서 쉼.
 //   마디 구분은 '|'. 한 마디는 적힌 칸 수만큼 똑같이 나뉜다(4칸=4분음표, 8칸=8분, 16칸=16분).
@@ -30,7 +31,7 @@ export const TRACKS = {
     inst: {
       lead: { wave: 'pulse25', vol: 0.075, vib: 12, gate: 0.85 },
       bass: { wave: 'triangle', vol: 0.12, base: 'E2', gate: 0.7 },
-      chord: { wave: 'pulse12', vol: 0.03, base: 'G3', gate: 0.35, s: 0.4, d: 0.06 },
+      chord: { wave: 'pulse12', vol: 0.045, base: 'G3', gate: 0.35, s: 0.4, d: 0.06 },
     },
     bass: '1 . 8 . 5 . 8 .',
     chord: '. 358 . 358 . 358 . 358',
@@ -50,11 +51,282 @@ export const TRACKS = {
       },
       B: {
         chords: 'F | G | Em Am | Dm G',
-        lead: 'F5 . . A5 . . C6 . | D6 . . B5 . . G5 . | G5 . . B5 . . C6 . | D6 . C6 . B5 . G5 .',
+        lead: 'F5 . . A5 . . C6 . | D6 . . B5 . . G5 . | G5 . . B5 . . C6 . | D6 C6 A5 F5 D5 . F5 . G5 . B5 . D6 . B5 .',
         bass: '1 . . 8 . . 5 .',
         chord: '. . 358 . . 358 . .',
         k: 'x.....x.....x...',
         c: 'x|.|.|.',
+      },
+    },
+  },
+
+  // 아침: 상쾌하게 깡충깡충. 한 마디를 셋잇단 12칸으로 나눠 길게-짧게 뛰는 리듬
+  morning: {
+    bpm: 120,
+    key: 'G major',
+    form: 'A1 A2 B A2',
+    mix: { k: 0.12, s: 0.13, h: 0.04 },
+    inst: {
+      lead: { wave: 'square', vol: 0.048, vib: 10, gate: 0.8 },
+      bell: { wave: 'triangle', vol: 0.05, base: 'G3', gate: 0.5, s: 0.5, d: 0.08 },
+      bass: { wave: 'triangle', vol: 0.12, base: 'E2', gate: 0.6 },
+    },
+    bass: '1 . . 5 . . 8 . . 5 . .',
+    bell: '1 3 5 8 5 3 1 3 5 8 5 3',
+    k: 'x.....x.....',
+    s: '...x.....x..',
+    h: 'x.xx.xx.xx.x',
+    sections: {
+      A1: {
+        chords: 'G | Em | C | D',
+        lead: 'D5 - G5 B5 - G5 D6 - - . . . | E6 - D6 B5 - G5 E5 - - . . . | C6 - B5 A5 - G5 E5 - G5 A5 - B5 | A5 - - F#5 - - D5 - - . . .',
+        c: 'x|.|.|.',
+      },
+      A2: {
+        chords: 'G | Em | C D | G',
+        lead: 'D5 - G5 B5 - G5 D6 - - . . . | E6 - D6 B5 - G5 E5 - - . . . | C6 - B5 A5 - G5 F#5 - G5 A5 - F#5 | G5 - - D5 - - G5 - - . . .',
+      },
+      B: {
+        chords: 'C | G | Am | D7',
+        lead: 'E6 D6 C6 G5 - - E6 D6 C6 G5 - - | D6 C6 B5 G5 - - D6 C6 B5 G5 - - | C6 B5 A5 E5 - - A5 - - C6 - - | F#5 - - A5 - - D6 - - C6 - -',
+        bell: '8 . . 5 . . 3 . . 5 . .',
+      },
+    },
+  },
+
+  // 낮 공사장: 바쁘게 쿵쾅쿵쾅. 16분음표 망치질 같은 같은 음 되풀이와 쉬지 않는 기계 아르페지오
+  day: {
+    bpm: 140,
+    key: 'A major',
+    form: 'A1 A2 B A2',
+    inst: {
+      lead: { wave: 'pulse25', vol: 0.065, vib: 8, gate: 0.8 },
+      arp: { wave: 'pulse12', vol: 0.03, base: 'A3', gate: 0.5, s: 0.5, d: 0.04 },
+      bass: { wave: 'square', vol: 0.06, base: 'E2', gate: 0.6, lp: 900 },
+    },
+    bass: '1 8 1 8 1 8 1 8',
+    arp: '1 3 5 8 1 3 5 8 1 3 5 8 1 3 5 8',
+    k: 'x...x...x...x...',
+    s: '....x.......x...',
+    h: 'xxXxxxXxxxXxxxXx',
+    sections: {
+      A1: {
+        chords: 'A | D | A | E',
+        lead:
+          'E5 . E5 E5 A5 . E5 . C#6 . . B5 . . A5 . | F#5 . F#5 F#5 A5 . F#5 . D6 . . C#6 . . A5 . | ' +
+          'E5 . E5 E5 A5 . E5 . C#6 . . E6 . . C#6 . | B5 . . . G#5 . . . E5 . F#5 . G#5 . B5 .',
+        c: 'x|.|.|.',
+      },
+      A2: {
+        chords: 'A | D | F#m E | A',
+        lead:
+          'E5 . E5 E5 A5 . E5 . C#6 . . B5 . . A5 . | F#5 . F#5 F#5 A5 . F#5 . D6 . . C#6 . . A5 . | ' +
+          'C#6 . C#6 C#6 A5 . F#5 . B5 . B5 B5 G#5 . E5 . | A5 . . . E5 . A5 . C#6 - - - . . . .',
+      },
+      B: {
+        chords: 'D | E | C#m F#m | Bm E',
+        lead:
+          'F#5 - - A5 - - D6 - - - - - C#6 - B5 - | G#5 - - B5 - - E6 - - - - - D6 - B5 - | ' +
+          'G#5 - - E5 - - C#6 - A5 - - F#5 - - C#6 - | D6 - - B5 - - F#5 - G#5 - - B5 - - E6 -',
+        arp: '8 5 3 1 8 5 3 1 8 5 3 1 8 5 3 1',
+        s: '....x.......x...|....x.......x...|....x.......x...|....x...x.x.xxXX',
+      },
+    },
+  },
+
+  // 노을 상가: 따뜻하고 살랑살랑. 16분음표 뒷박을 살짝 끄는 스윙, 7화음, 아련한 Bbm6
+  sunset: {
+    bpm: 108,
+    key: 'F major',
+    swing: 0.22,
+    form: 'A1 A2 B A2',
+    mix: { k: 0.15, s: 0.16, h: 0.035 },
+    inst: {
+      lead: { wave: 'square', vol: 0.045, vib: 18, gate: 0.92, s: 0.6, d: 0.3 },
+      keys: { wave: 'pulse12', vol: 0.035, base: 'D3', gate: 0.5, s: 0.5, d: 0.08 },
+      bass: { wave: 'triangle', vol: 0.12, base: 'E2', gate: 0.8 },
+    },
+    bass: '1 . . 1 . . 5 . 8 . . 7 . . 5 .',
+    keys: '. . . . 357 . . 357 . . . . 357 . . .',
+    k: 'x......x..x.....',
+    s: '....x.......x.g.',
+    h: 'x.xxx.xxx.xxx.xx',
+    sections: {
+      A1: {
+        chords: 'Fmaj7 | Am7 | Bbmaj7 | C7',
+        lead:
+          'A5 - - G5 A5 - C6 - - - - - . . . . | E5 - - D5 E5 - G5 - - - - - . . . . | ' +
+          'F5 - - D5 F5 - A5 - - - Bb5 - A5 - F5 - | G5 - - - - - E5 - - - C5 - - - . .',
+      },
+      A2: {
+        chords: 'Fmaj7 | Am7 | Bbmaj7 C7 | F6',
+        lead:
+          'A5 - - G5 A5 - C6 - - - - - . . . . | E5 - - D5 E5 - G5 - - - - - . . . . | ' +
+          'F5 - - D5 F5 - A5 - G5 - - E5 G5 - Bb5 - | A5 - - - - - - - . . . . . . . .',
+      },
+      B: {
+        chords: 'Bbmaj7 | Bbm6 | Am7 D7 | Gm7 C7',
+        lead:
+          '. . D6 - C6 - A5 - - - F5 - - - . . | . . Db6 - C6 - G5 - - - F5 - - - . . | ' +
+          'E5 - - G5 - - C6 - F#5 - - A5 - - C6 - | Bb5 - - A5 - - G5 - E5 - - G5 - - Bb5 -',
+      },
+    },
+  },
+
+  // 네온 밤거리: 시원한 신스, 3+3+… 엇박 리듬, 점8분음표 뒤에 따라오는 메아리
+  night: {
+    bpm: 118,
+    key: 'A minor',
+    form: 'A1 A2 B A2',
+    inst: {
+      lead: { wave: 'pulse25', vol: 0.065, vib: 16, gate: 0.9 },
+      echo: { copy: 'lead', shift: 0.75, wave: 'pulse12', vol: 0.028, gate: 0.9 },
+      arp: { wave: 'pulse12', vol: 0.028, base: 'A3', gate: 0.6, s: 0.5, d: 0.05 },
+      bass: { wave: 'square', vol: 0.055, base: 'E2', gate: 0.7, lp: 700 },
+    },
+    bass: '1 . . 1 . . 1 . . 1 . . 8 . 5 .',
+    arp: '1 5 8 1 5 8 1 5 8 1 5 8 1 5 8 5',
+    k: 'x.....x...x.....',
+    s: '....x.......x...',
+    h: '..x...x...x...o.',
+    sections: {
+      A1: {
+        chords: 'Am | F | C | G',
+        lead:
+          'E5 . . A5 . . C6 . . . B5 . A5 . . . | C6 . . A5 . . F5 . . . G5 . A5 . . . | ' +
+          'E6 - - D6 - - C6 - - - G5 - - - - - | D6 - - - - - B5 - - - - - G5 - - -',
+        c: 'x|.|.|.',
+      },
+      A2: {
+        chords: 'Am | F | Dm | E',
+        lead:
+          'E5 . . A5 . . C6 . . . B5 . A5 . . . | C6 . . A5 . . F5 . . . G5 . A5 . . . | ' +
+          'F5 . . A5 . . D6 . . . C6 . A5 . . . | B5 - - - - - G#5 - - - - - E5 - - -',
+      },
+      B: {
+        chords: 'F | G | Em | Am',
+        lead: 'C6 - - - - - A5 - | D6 - - - - - B5 - | E6 - - - - - B5 - | C6 - - - A5 - - -',
+        arp: '1 3 5 8 3 5 8 5 1 3 5 8 3 5 8 5',
+        bass: '1 . . . . . 1 . 8 . . . 5 . . .',
+        h: 'x.x.x.x.x.x.x.o.',
+        c: 'x|.|.|.',
+      },
+    },
+  },
+
+  // 폭풍우 고층 빌딩: 긴장되지만 신나게. 말발굽처럼 달리는 베이스, 빗방울처럼 떨어지는 아르페지오
+  storm: {
+    bpm: 150,
+    key: 'D minor',
+    form: 'A1 A2 B A2',
+    inst: {
+      lead: { wave: 'pulse25', vol: 0.062, vib: 10, gate: 0.85 },
+      rain: { wave: 'pulse12', vol: 0.026, base: 'A3', gate: 0.5, s: 0.4, d: 0.04 },
+      bass: { wave: 'square', vol: 0.055, base: 'D2', gate: 0.55, lp: 800 },
+    },
+    bass: '1 . 1 1 1 . 1 1 1 . 1 1 8 . 8 8',
+    rain: '8 5 3 1 8 5 3 1 8 5 3 1 8 5 3 1',
+    k: 'x.....x.x.....x.',
+    s: '....x.......x...',
+    h: 'x.x.x.x.x.x.x.x.',
+    sections: {
+      A1: {
+        chords: 'Dm | Bb | C | A',
+        lead:
+          'A5 . A5 A5 A5 . A5 A5 D6 - - - C6 - A5 - | F5 . F5 F5 F5 . F5 F5 Bb5 - - - A5 - F5 - | ' +
+          'G5 . G5 G5 G5 . G5 G5 C6 - - - Bb5 - G5 - | E5 . E5 E5 A5 . A5 A5 C#6 - - - E6 - - -',
+        c: 'x|.|.|.',
+      },
+      A2: {
+        chords: 'Dm | Bb | Gm A | Dm',
+        lead:
+          'A5 . A5 A5 A5 . A5 A5 D6 - - - C6 - A5 - | F5 . F5 F5 F5 . F5 F5 Bb5 - - - A5 - F5 - | ' +
+          'Bb5 . Bb5 Bb5 G5 . D5 . C#6 . C#6 C#6 A5 . E5 . | D6 - - - A5 - - - D5 - - - . . . .',
+        s: '....x.......x...|....x.......x...|....x.......x...|....x.......xxXX',
+      },
+      B: {
+        chords: 'Gm | Eb | Bb | A',
+        lead: 'D6 - Bb5 - | Eb6 - - - G5 - Bb5 - | D6 - - - F5 - Bb5 - | C#6 - - - E6 - - -',
+        h: 'xxXxxxXxxxXxxxXx',
+        c: 'x|.|.|.',
+      },
+    },
+  },
+
+  // 보스전: 급하고 씩씩한데 어딘가 우스꽝스럽게. 반음씩 미끄러져 내려오는 "와와와"
+  boss: {
+    bpm: 164,
+    key: 'E minor',
+    form: 'A1 A2 B A2',
+    inst: {
+      lead: { wave: 'pulse25', vol: 0.065, vib: 14, bend: 40, gate: 0.8 },
+      dbl: { copy: 'lead', tr: -12, wave: 'triangle', vol: 0.05, gate: 0.8 },
+      arp: { wave: 'pulse12', vol: 0.024, base: 'B3', gate: 0.5, s: 0.4, d: 0.03 },
+      bass: { wave: 'square', vol: 0.055, base: 'E2', gate: 0.6, lp: 1000 },
+    },
+    bass: '1 1 8 1 1 1 8 1',
+    arp: '1 3 5 8 1 3 5 8 1 3 5 8 1 3 5 8',
+    k: 'x...x...x...x...',
+    s: '....x.......x...',
+    h: 'x.x.x.x.x.x.x.x.',
+    sections: {
+      A1: {
+        chords: 'Em | C | D | B7',
+        lead:
+          'B4 . . E5 . . G5 . B5 - - - - - . . | C6 . B5 . C6 . B5 . G5 . E5 . G5 . . . | ' +
+          'A4 . . D5 . . F#5 . A5 - - - - - . . | B5 . Bb5 . A5 . G#5 . G5 . F#5 . D#5 . . .',
+        c: 'x|.|.|.',
+      },
+      A2: {
+        chords: 'Em | C | Am B7 | Em',
+        lead:
+          'B4 . . E5 . . G5 . B5 - - - - - . . | C6 . B5 . C6 . B5 . G5 . E5 . G5 . . . | ' +
+          'C6 . . A5 . . E5 . D#6 . . B5 . . F#5 . | E6 - - - - - B5 . E5 . . . . . . .',
+        s: '....x.......x...|....x.......x...|....x.......x...|....x...x.x.xxXX',
+      },
+      B: {
+        chords: 'C | D | Bm Em | C B7',
+        lead:
+          'E5 E5 G5 . E5 E5 G5 . E5 E5 G5 . C6 . . . | F#5 F#5 A5 . F#5 F#5 A5 . F#5 F#5 A5 . D6 . . . | ' +
+          'D6 . B5 . F#5 . B5 . E6 . B5 . G5 . B5 . | C6 - - - G5 - - - B5 - - - A5 - - -',
+        arp: '8 5 3 1 8 5 3 1 8 5 3 1 8 5 3 1',
+        c: 'x|.|.|.',
+      },
+    },
+  },
+
+  // 엔딩: 불꽃놀이와 함께! 타이틀 후렴을 한 음 올려 다시 부르고, Bb–C–D로 힘차게 올라선다
+  ending: {
+    bpm: 126,
+    key: 'D major',
+    form: 'A1 A2 B A2',
+    inst: {
+      lead: { wave: 'pulse25', vol: 0.07, vib: 14, gate: 0.85 },
+      chord: { wave: 'pulse12', vol: 0.045, base: 'A3', gate: 0.4, s: 0.5, d: 0.06 },
+      spark: { wave: 'triangle', vol: 0.035, base: 'G4', gate: 0.5, s: 0.4, d: 0.04 },
+      bass: { wave: 'triangle', vol: 0.1, base: 'E2', gate: 0.7 },
+    },
+    bass: '1 8 5 8 1 8 5 8',
+    chord: '. 358 . 358 . 358 . 358',
+    k: 'x...x...x...x...',
+    s: '....x.......x...',
+    h: 'x.x.x.x.x.x.x.o.',
+    sections: {
+      A1: {
+        chords: 'D | Bm | Em | A',
+        lead: 'F#5 F#5 . D6 - C#6 A5 . | D5 D5 . B5 - A5 F#5 . | E5 E5 . B5 - A5 G5 . | A5 . C#6 . E6 - D6 C#6',
+        c: 'x|.|.|.',
+      },
+      A2: {
+        chords: 'D | Bm | G A | D',
+        lead: 'F#5 F#5 . D6 - C#6 A5 . | D5 D5 . B5 - A5 F#5 . | G5 . B5 . C#6 . E6 . | D6 - - - . . A5 .',
+      },
+      B: {
+        chords: 'G | A | Bb C | D',
+        lead: 'B4 . B4 B4 D5 - G5 - | C#5 . C#5 C#5 E5 - A5 - | Bb5 - - - C6 - - - | D6 - - - - - - -',
+        spark: '8 5 3 5 8 5 3 5 8 5 3 5 8 5 3 5',
+        s: '....x.......x...|....x.......x...|x.x.x.x.x.x.xxxx|X...x.......x...',
+        c: 'x|.|.|x',
       },
     },
   },
@@ -88,11 +360,11 @@ function parseChord(sym) {
 // 칸 하나 → MIDI 음 번호들
 function tokenMidis(tok, chord, base) {
   if (/^[A-G]/.test(tok)) return [noteMidi(tok)];
-  if (!/^([135789]['",]*)+$/.test(tok)) throw new Error(`music: bad token "${tok}"`);
+  if (!/^([135789][',]*)+$/.test(tok)) throw new Error(`music: bad token "${tok}"`);
   const root = base + ((((chord.pc - base) % 12) + 12) % 12);
+  const iv = chord.iv;
   const out = [];
-  for (const [, d, mod] of tok.matchAll(/([135789])(['",]*)/g)) {
-    const iv = chord.iv;
+  for (const [, d, mod] of tok.matchAll(/([135789])([',]*)/g)) {
     const semi = { 1: 0, 3: iv[1], 5: iv[2], 7: iv[3] ?? 12, 8: 12, 9: 14 }[d];
     let oct = 0;
     for (const ch of mod) oct += ch === ',' ? -1 : 1;
@@ -109,7 +381,7 @@ const barOf = (pat, i) => {
 
 const compiled = new Map();
 
-// 곡 하나 → { events(시간순, 초 단위), loopDur, bars, insts }
+// 곡 하나 → { events(시간순, 초 단위: t 시작, d 길이, v 성부 + f 주파수 또는 drum + vel), loopDur, insts }
 function compile(name) {
   let c = compiled.get(name);
   if (c) return c;
@@ -185,7 +457,7 @@ function compile(name) {
       return Object.assign(ev, { v: e.v, f: 440 * Math.pow(2, (e.m - 69) / 12) });
     })
     .sort((a, b) => a.t - b.t);
-  c = { events, loopDur: loopBeats * beat, bars: bars.length, insts, names };
+  c = { events, loopDur: loopBeats * beat, insts };
   compiled.set(name, c);
   return c;
 }
@@ -268,6 +540,7 @@ function playNote(st, e, t) {
   const p = g.gain;
   const end = t + Math.max(e.d * inst.gate, 0.03);
   const stop = end + inst.r;
+  p.value = 0;
   p.setValueAtTime(0, t);
   p.linearRampToValueAtTime(inst.vol, t + inst.a);
   if (inst.s < 1) p.setTargetAtTime(inst.vol * inst.s, t + inst.a, inst.d);
@@ -293,10 +566,12 @@ function playNote(st, e, t) {
 }
 
 function noiseHit(st, to, t, len, vol) {
+  if (!(vol > 0)) return;
   const src = st.ctx.createBufferSource();
   src.buffer = st.noise;
   src.loop = true;
   const g = st.ctx.createGain();
+  g.gain.value = vol; // 기본값 1이 시작 직전 한 샘플에 새어 나가 '틱' 튀지 않게
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(vol * 0.01, t + len);
   src.connect(g).connect(to);
@@ -308,10 +583,12 @@ function playDrum(st, e, t) {
   const { ctx, mix } = st;
   const v = e.vel;
   if (e.drum === 'k') {
+    if (!(mix.k > 0)) return;
     const o = ctx.createOscillator();
     o.frequency.setValueAtTime(150, t);
     o.frequency.exponentialRampToValueAtTime(45, t + 0.11);
     const g = ctx.createGain();
+    g.gain.value = 0;
     g.gain.setValueAtTime(mix.k * v, t);
     g.gain.exponentialRampToValueAtTime(mix.k * v * 0.01, t + 0.24);
     o.connect(g).connect(st.out);
@@ -374,6 +651,7 @@ let want = null; // 연주해야 할 곡(오디오 준비 전이면 기다린다
 let live = null; // 지금 연주 중인 곡 { name, st }
 let timer = 0;
 let hooked = false;
+const warned = new Set();
 
 function tick() {
   if (!live) return;
@@ -411,7 +689,8 @@ export function playMusic(name) {
   if (!name) return stopMusic();
   if (name === want) return;
   if (!TRACKS[name]) {
-    console.warn(`music: unknown track "${name}"`);
+    if (!warned.has(name)) console.warn(`music: unknown track "${name}"`);
+    warned.add(name);
     return;
   }
   want = name;

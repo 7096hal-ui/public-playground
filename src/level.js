@@ -1,5 +1,18 @@
 import { T, ROWS } from './levels.js';
-import { Flyer, Pigeon, WreckingBall, Platform, Checkpoint, Goal } from './entities.js';
+import {
+  Flyer,
+  Pigeon,
+  WreckingBall,
+  Platform,
+  Crumble,
+  Spring,
+  Zipline,
+  Vent,
+  Rod,
+  Item,
+  Checkpoint,
+  Goal,
+} from './entities.js';
 
 const SOLID = new Set(['#', 'B', 'A']);
 const WALLS = 6; // 건물 외벽 색 종류 수
@@ -9,6 +22,8 @@ export class Level {
   constructor(def) {
     this.name = def.name;
     this.theme = def.theme;
+    this.boss = !!def.boss;
+    this.par = def.par || 100;
     this.cols = def.width;
     this.rows = ROWS;
     this.grid = def.grid.map((row) => row.slice());
@@ -18,12 +33,18 @@ export class Level {
     this.flyers = def.flyers.map((f) => new Flyer(f));
     this.pigeons = def.pigeons.map((c) => new Pigeon(c));
     this.wreckingBalls = def.wreckingBalls.map((s) => new WreckingBall(s));
-    this.platforms = def.platforms.map((p) => new Platform(p));
+    // 위에서 올라설 수 있는 발판: 크레인 철골, 곤돌라, 낡은 간판
+    this.platforms = [...def.platforms.map((p) => new Platform(p)), ...(def.crumbles || []).map((c) => new Crumble(c))];
+    this.springs = (def.springs || []).map((s) => new Spring(s));
+    this.ziplines = (def.ziplines || []).map((z) => new Zipline(z));
+    this.vents = (def.vents || []).map((v) => new Vent(v));
+    this.rods = (def.rods || []).map((r) => new Rod(r));
+    this.items = (def.items || []).map((i) => new Item(i));
     this.checkpoints = def.checkpoints.map((c) => new Checkpoint(c));
-    this.goal = new Goal(def.goal);
+    this.goal = def.goal ? new Goal(def.goal) : null;
     this.totalFlyers = this.flyers.length;
 
-    // 맨 아래 줄까지 이어진 칸들을 한 채의 건물로 보고, 건물마다 외벽 색을 정한다.
+    // 맨 아래 줄까지 이어진 칸들을 한 채의 건물로 보고, 건물마다 외벽 색을 정한다(2D 그림용).
     this.wall = new Array(this.cols).fill(0);
     let id = 0;
     for (let x = 0; x < this.cols; x++) {
@@ -49,9 +70,14 @@ export class Level {
     for (const p of this.platforms) p.update(dt);
     for (const s of this.wreckingBalls) s.update(dt);
     for (const c of this.pigeons) c.update(dt, this);
+    for (const s of this.springs) s.update(dt);
+    for (const v of this.vents) v.update(dt);
+    for (const r of this.rods) r.update(dt);
+    for (const i of this.items) i.update(dt);
     const px = player.x + player.w / 2;
     const py = player.y + player.h / 2;
-    for (const f of this.flyers) f.update(dt, px, py);
+    const magnet = player.magnet > 0;
+    for (const f of this.flyers) f.update(dt, px, py, magnet);
     this.flyers = this.flyers.filter((f) => !f.gone);
     this.pigeons = this.pigeons.filter((c) => !c.gone);
   }
