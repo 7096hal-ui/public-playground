@@ -608,7 +608,8 @@ export class Game {
       this.bolt.life -= dt;
       if (this.bolt.life <= 0) this.bolt = null;
     }
-    if (this.state !== 'title' && this.level && theme(this.level.theme).lightning) {
+    const live = this.state === 'play' || this.state === 'intro' || this.state === 'dying';
+    if (live && this.level && theme(this.level.theme).lightning) {
       this.lightningT -= dt;
       if (this.lightningT <= 0) {
         this.lightningT = 5 + Math.random() * 6;

@@ -808,6 +808,7 @@ export class World3D {
     for (const o of this.levelObjs) {
       this.scene.remove(o);
       o.geometry.dispose();
+      if (o.isInstancedMesh) o.dispose(); // 인스턴스 버퍼도 비운다
     }
     this.levelObjs = [];
   }

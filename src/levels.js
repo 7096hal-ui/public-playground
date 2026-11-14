@@ -269,7 +269,7 @@ export const LEVELS = [
       // 짚라인 2: 비계 위에서 골목 53~57 건너편으로
       L.zipline(50, 3, 63, 8);
       L.building(58, 70, 10);
-      L.pigeon(62);
+      L.blocks(65, 9, 1, 1, 'A'); // 실외기가 비둘기를 짚라인 착지 지점에서 떼어 놓는다
       L.fly(66, 6);
       L.pigeon(68);
       // 골목 71~74
@@ -286,7 +286,8 @@ export const LEVELS = [
       L.crumble(93, 10, 2);
       L.building(96, 110, 10);
       L.fly(100, 6, { ax: 2 });
-      L.pigeon(104);
+      L.blocks(103, 9, 1, 1, 'A');
+      L.pigeon(106);
       // 골목 111~113
       L.building(114, 155, 11);
       L.spring(118);
@@ -398,13 +399,13 @@ export const LEVELS = [
       L.vent(56, 2, 9);
       L.blocks(58, 5, 3);
       L.fly(59, 2);
-      L.zipline(60, 3, 74, 8);
+      L.zipline(60, 3, 71, 7);
       // 골목 61~66: 짚라인으로
       L.building(67, 80, 10);
       L.item(70, 7, 'net');
-      L.rod(72, 3.2, 0.8);
       L.fly(75, 6, { ax: 1 });
-      L.rod(78, 3.2, 2.4);
+      L.rod(77, 3.2, 0.8); // 짚라인 경로 밖에 둔다
+      L.rod(79, 3.2, 2.4);
       // 곤돌라를 타고 탑으로
       L.gondola(81, 3, 7, 0.8, 2);
       L.fly(82, 2);
@@ -417,9 +418,9 @@ export const LEVELS = [
       L.fly(104, 5);
       // 골목 99~104
       L.building(105, 118, 11);
-      L.pigeon(110);
-      L.spikes(114, 115);
-      L.fly(115, 7);
+      L.blocks(109, 10, 1, 1, 'A');
+      L.pigeon(106);
+      L.fly(116, 7);
       // 골목 119~121
       L.building(122, 132, 10);
       L.rod(126, 2.4, 0.6);

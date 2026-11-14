@@ -109,7 +109,7 @@ function frame(now) {
   acc += Math.min(ms / 1000, 0.25);
   last = now;
   if (world && autoQuality && !document.hidden) {
-    slow = ms > 26 ? slow + 1 : Math.max(0, slow - 2);
+    slow = ms > 40 ? slow + 1 : Math.max(0, slow - 2); // 30fps 고정 폰은 그대로 둔다
     if (slow > 90) {
       world.lowerQuality();
       slow = 0;
